@@ -121,7 +121,7 @@ When a new version is deployed, a banner offers **Update** — tap it to reload 
 
 In Shopify: **Orders → (filter, e.g. Unfulfilled) → Export → Current page / selected orders → CSV for Excel**. In the app: open a batch → **Add products → Import Shopify orders CSV**.
 
-* One batch line per order line item (multi-item orders included); the order number is saved in the item's notes ().
+* One batch line per order line item (multi-item orders included); the order number is saved in the item's notes (`Order #haven32540`).
 * Quantity comes from **Lineitem quantity**; pack products such as “(PACK OF TWO)”, “Pack of 3” or “2-Pack” are multiplied into pieces.
 * Orders with **Cancelled at** set in Shopify are skipped. (Orders you only *tagged* as cancelled are still included — remove them from the export or cancel the line in the app.)
 * Orders already imported into any batch are detected and skipped by default (toggle in the preview).

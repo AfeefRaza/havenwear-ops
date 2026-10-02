@@ -1,6 +1,8 @@
 /**
  * Stock per category:
- *   Opening/adjustments + Returns received + Made by supplier − Used (received items)
+ *   Opening/adjustments + Returns received + Supplier deliveries − Used (all received items)
+ * (Items marked "received from supplier" are shown as madeBySupplier for information; the physical
+ * supplier stock comes from logged deliveries.)
  * Pending pieces are reported separately and NOT subtracted.
  * Status: red (shortage) < 0, amber (low) ≤ low_stock_level, green above.
  */
@@ -24,6 +26,7 @@ export interface StockItem {
 export interface StockInputs {
   adjustments: readonly { category_id: string; qty: number }[]
   returnLines: readonly { category_id: string; qty: number }[]
+  deliveryLines?: readonly { category_id: string; qty: number }[]
   items: readonly StockItem[]
 }
 
@@ -33,6 +36,7 @@ export interface CategoryStock {
   lowStockLevel: number
   adjustments: number
   returnsIn: number
+  delivered: number
   madeBySupplier: number
   used: number
   usedFromReturns: number
@@ -56,6 +60,7 @@ export function stockByCategory(categories: readonly StockCategory[], input: Sto
       lowStockLevel: c.low_stock_level,
       adjustments: 0,
       returnsIn: 0,
+      delivered: 0,
       madeBySupplier: 0,
       used: 0,
       usedFromReturns: 0,
@@ -72,6 +77,10 @@ export function stockByCategory(categories: readonly StockCategory[], input: Sto
     const r = rows.get(l.category_id)
     if (r) r.returnsIn += l.qty
   }
+  for (const l of input.deliveryLines ?? []) {
+    const r = rows.get(l.category_id)
+    if (r) r.delivered += l.qty
+  }
   for (const it of input.items) {
     if (!it.resolved_category_id || it.status === 'cancelled') continue
     const r = rows.get(it.resolved_category_id)
@@ -85,7 +94,7 @@ export function stockByCategory(categories: readonly StockCategory[], input: Sto
     }
   }
   for (const r of rows.values()) {
-    r.stock = r.adjustments + r.returnsIn + r.madeBySupplier - r.used
+    r.stock = r.adjustments + r.returnsIn + r.delivered - r.used
     r.status = stockStatus(r.stock, r.lowStockLevel)
   }
   return [...rows.values()]

@@ -14,7 +14,7 @@ import { useOnline } from '../lib/hooks'
 import { assertOnline, errorMessage, supabase } from '../lib/supabase'
 import { useWorkspace } from '../lib/workspace'
 
-const TABLES = ['categories', 'keyword_rules', 'batches', 'batch_items', 'return_receipts', 'return_receipt_lines', 'stock_adjustments'] as const
+const TABLES = ['categories', 'keyword_rules', 'batches', 'batch_items', 'return_receipts', 'return_receipt_lines', 'supplier_deliveries', 'supplier_delivery_lines', 'stock_adjustments'] as const
 
 async function fetchAll(table: string, ws: string): Promise<Record<string, unknown>[]> {
   const out: Record<string, unknown>[] = []

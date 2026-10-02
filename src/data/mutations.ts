@@ -387,7 +387,43 @@ export function useCreateReturnReceipt() {
   })
 }
 
-export function useDeleteRow(table: 'return_receipts' | 'stock_adjustments') {
+export function useCreateDelivery() {
+  const ws = useWorkspaceId()
+  const qc = useQueryClient()
+  const onError = useOnError()
+  return useMutation({
+    mutationFn: async (v: {
+      date: string
+      supplier: string | null
+      reference: string | null
+      batch_id: string | null
+      notes: string | null
+      lines: { category_id: string; qty: number }[]
+    }) => {
+      assertOnline()
+      const lines = v.lines.filter((l) => l.qty > 0)
+      if (!lines.length) throw new Error('Add at least one piece.')
+      const { lines: _l, ...head } = v
+      const { data, error } = await supabase.from('supplier_deliveries').insert({ ...head, workspace_id: ws }).select('id').single()
+      if (error) throw error
+      const deliveryId = (data as { id: string }).id
+      const { error: e2 } = await supabase
+        .from('supplier_delivery_lines')
+        .insert(lines.map((l) => ({ ...l, delivery_id: deliveryId, workspace_id: ws })))
+      if (e2) {
+        await supabase.from('supplier_deliveries').delete().eq('id', deliveryId)
+        throw e2
+      }
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.deliveries(ws) })
+      invalidateWork(qc)
+    },
+    onError,
+  })
+}
+
+export function useDeleteRow(table: 'return_receipts' | 'stock_adjustments' | 'supplier_deliveries') {
   const ws = useWorkspaceId()
   const qc = useQueryClient()
   const onError = useOnError()
@@ -398,8 +434,10 @@ export function useDeleteRow(table: 'return_receipts' | 'stock_adjustments') {
       if (error) throw error
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: table === 'return_receipts' ? qk.returns(ws) : qk.adjustments(ws) })
-      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      void qc.invalidateQueries({
+        queryKey: table === 'return_receipts' ? qk.returns(ws) : table === 'supplier_deliveries' ? qk.deliveries(ws) : qk.adjustments(ws),
+      })
+      invalidateWork(qc)
     },
     onError,
   })

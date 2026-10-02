@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Boxes, Clock, Home, Menu, PackageOpen, RefreshCw, WifiOff } from 'lucide-react'
+import { ArrowLeft, Boxes, Clock, Home, Menu, PackageOpen, RefreshCw, Truck, WifiOff } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useRegisterSW } from 'virtual:pwa-register/react'
@@ -17,7 +17,8 @@ const TABS = [
   { to: '/', label: 'Home', icon: Home, end: true },
   { to: '/batches', label: 'Batches', icon: Boxes },
   { to: '/pending', label: 'Pending', icon: Clock },
-  { to: '/returns', label: 'Returns in', icon: PackageOpen },
+  { to: '/returns', label: 'Returns', icon: PackageOpen },
+  { to: '/deliveries', label: 'Supplier', icon: Truck },
   { to: '/more', label: 'More', icon: Menu },
 ]
 
@@ -73,7 +74,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               >
                 {({ isActive }) => (
                   <>
-                    <span className={cn('grid h-7 w-12 place-items-center rounded-full transition', isActive && 'bg-surface-2')}>
+                    <span className={cn('grid h-7 w-11 place-items-center rounded-full transition', isActive && 'bg-surface-2')}>
                       <t.icon className="size-5" aria-hidden />
                     </span>
                     {t.label}

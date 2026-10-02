@@ -4,6 +4,8 @@ import { periodRange, todayISO, type Period } from '../domain/dates'
 import {
   AdjustmentRow,
   BatchRow,
+  DeliveryLineRow,
+  DeliveryRow,
   CategoryRow,
   ItemRow,
   ReturnLineRow,
@@ -23,6 +25,7 @@ export const qk = {
   pending: (ws: string) => ['pending', ws] as const,
   unmatched: (ws: string) => ['unmatched', ws] as const,
   returns: (ws: string) => ['returns', ws] as const,
+  deliveries: (ws: string) => ['deliveries', ws] as const,
   adjustments: (ws: string) => ['adjustments', ws] as const,
   dashboard: (ws: string, period: Period, today: string) => ['dashboard', ws, period, today] as const,
   activeItems: (ws: string) => ['activeItems', ws] as const,
@@ -43,6 +46,7 @@ export const BatchSummaryRow = BatchRow.extend({
   est_supplier_cost: z.coerce.number(),
   last_item_change: z.string().nullable(),
   stage: z.enum(['empty', 'in_progress', 'complete', 'archived']),
+  delivered_pieces: z.number().int().default(0),
 })
 export type BatchSummary = z.infer<typeof BatchSummaryRow>
 
@@ -63,12 +67,13 @@ export const DashboardData = z.object({
     from_returns: n, from_supplier: n, est_supplier_cost: n,
   }),
   returned_stock_received: n,
+  supplier_delivered: n.default(0),
   alerts: z.object({ pending_lines: n, pending_pieces: n }),
   unmatched_lines: n,
   ready_to_archive: n,
   stock: z.array(z.object({
     category_id: z.string(), name: z.string(), low_stock_level: n, sort_order: n,
-    adjustments: n, returns_in: n, supplier: n, returns_used: n, pending: n,
+    adjustments: n, returns_in: n, delivered: n.default(0), supplier: n, returns_used: n, pending: n,
   })),
   daily: z.array(z.object({ date: z.string(), returns: n, supplier: n })),
   weekly_cost: z.array(z.object({ week: z.string(), cost: n })),
@@ -250,6 +255,27 @@ export function useReturnReceipts() {
         .limit(100)
       if (error) throw error
       return parseRows(ReceiptWithLines, data, 'return receipt')
+    },
+  })
+}
+
+const DeliveryWithLines = DeliveryRow.extend({ supplier_delivery_lines: z.array(DeliveryLineRow) })
+export type DeliveryWithLinesT = z.infer<typeof DeliveryWithLines>
+
+export function useSupplierDeliveries() {
+  const ws = useWorkspaceId()
+  return useQuery({
+    queryKey: qk.deliveries(ws),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('supplier_deliveries')
+        .select('*, supplier_delivery_lines(*)')
+        .eq('workspace_id', ws)
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(100)
+      if (error) throw error
+      return parseRows(DeliveryWithLines, data, 'supplier delivery')
     },
   })
 }

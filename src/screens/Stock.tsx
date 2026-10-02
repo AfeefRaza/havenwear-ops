@@ -44,7 +44,7 @@ export default function Stock() {
       <PageHeader title="Opening stock & adjustments" back />
       <Card className="flex flex-col gap-3 text-sm">
         <p className="text-muted">
-          Stock per category = opening/adjustments + returns received + made by supplier − used. Use an <strong>opening</strong> entry once per category when
+          Stock per category = opening/adjustments + returns received + supplier deliveries − items received. Use an <strong>opening</strong> entry once per category when
           you start, and <strong>adjustments</strong> (positive or negative) after a stock count.
         </p>
         <div className="grid grid-cols-2 gap-2">

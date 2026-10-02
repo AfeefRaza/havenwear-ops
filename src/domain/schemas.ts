@@ -109,6 +109,28 @@ export const ReturnLineRow = z.object({
   updated_at: ts,
 })
 
+export const DeliveryRow = z.object({
+  id: uuid,
+  workspace_id: uuid,
+  date: isoDate,
+  supplier: z.string().nullable(),
+  reference: z.string().nullable(),
+  batch_id: uuid.nullable(),
+  notes: z.string().nullable(),
+  created_at: ts,
+  updated_at: ts,
+})
+
+export const DeliveryLineRow = z.object({
+  id: uuid,
+  workspace_id: uuid,
+  delivery_id: uuid,
+  category_id: uuid,
+  qty: z.number().int().positive(),
+  created_at: ts,
+  updated_at: ts,
+})
+
 export const AdjustmentRow = z.object({
   id: uuid,
   workspace_id: uuid,

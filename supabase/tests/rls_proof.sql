@@ -26,6 +26,7 @@ declare
   n bigint;
   tables text[] := array['workspaces', 'workspace_members', 'categories', 'keyword_rules', 'batches',
                          'batch_items', 'return_receipts', 'return_receipt_lines', 'stock_adjustments',
+                         'supplier_deliveries', 'supplier_delivery_lines',
                          -- read-model views (security_invoker) must be filtered too
                          'batch_summaries', 'pending_items', 'unmatched_names'];
   dash jsonb;
@@ -43,6 +44,8 @@ begin
   insert into public.return_receipts (workspace_id, reference) values (ws, 'RLS') returning id into rr;
   insert into public.return_receipt_lines (workspace_id, receipt_id, category_id, qty) values (ws, rr, cat, 3);
   insert into public.stock_adjustments (workspace_id, category_id, qty, kind) values (ws, cat, 10, 'opening');
+  insert into public.supplier_deliveries (workspace_id, reference, batch_id) values (ws, 'DC-1', bat) returning id into rr;
+  insert into public.supplier_delivery_lines (workspace_id, delivery_id, category_id, qty) values (ws, rr, cat, 4);
   select id into item_id from public.batch_items where workspace_id = ws limit 1;
 
   ---------------------------------------------------------------- 1. anon

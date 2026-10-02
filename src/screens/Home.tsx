@@ -32,6 +32,7 @@ export default function Home() {
       {
         adjustments: d.stock.map((s) => ({ category_id: s.category_id, qty: s.adjustments })),
         returnLines: d.stock.map((s) => ({ category_id: s.category_id, qty: s.returns_in })),
+        deliveryLines: d.stock.map((s) => ({ category_id: s.category_id, qty: s.delivered })),
         items: d.stock.flatMap((s) => [
           { qty: s.supplier, status: 'received' as const, received_from: 'supplier' as const, resolved_category_id: s.category_id },
           { qty: s.returns_used, status: 'received' as const, received_from: 'return' as const, resolved_category_id: s.category_id },
@@ -120,6 +121,7 @@ export default function Home() {
               <Kpi label="Return usage" value={formatPct(derived.ratios.returnPct)} />
               <Kpi label="Supplier usage" value={formatPct(derived.ratios.supplierPct)} />
               <Kpi label="Returned stock received" value={formatInt(d.returned_stock_received)} />
+              <Kpi label="Supplier delivered" value={formatInt(d.supplier_delivered)} />
               <Kpi label="Current stock" value={formatInt(totalStock(derived.stock))} hint="all time" />
             </dl>
 
@@ -190,7 +192,7 @@ function StockList({ rows }: { rows: CategoryStock[] }) {
             <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold">{r.name}</div>
               <div className="tabular text-xs text-muted">
-                +{r.adjustments + r.returnsIn + r.madeBySupplier} in · −{r.used} used
+                +{r.adjustments + r.returnsIn + r.delivered} in · −{r.used} used
                 {r.pending ? ` · ${r.pending} pending` : ''}
               </div>
             </div>

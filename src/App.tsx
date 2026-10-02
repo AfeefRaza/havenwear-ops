@@ -15,6 +15,7 @@ const Batches = lazy(() => import('./screens/Batches'))
 const BatchDetail = lazy(() => import('./screens/BatchDetail'))
 const Pending = lazy(() => import('./screens/Pending'))
 const Returns = lazy(() => import('./screens/Returns'))
+const Deliveries = lazy(() => import('./screens/Deliveries'))
 const More = lazy(() => import('./screens/More'))
 const RulesScreen = lazy(() => import('./screens/Rules'))
 const StockScreen = lazy(() => import('./screens/Stock'))
@@ -67,6 +68,7 @@ function Gate() {
               <Route path="/batches/:id" element={<BatchDetail />} />
               <Route path="/pending" element={<Pending />} />
               <Route path="/returns" element={<Returns />} />
+              <Route path="/deliveries" element={<Deliveries />} />
               <Route path="/more" element={<More />} />
               <Route path="/more/rules" element={<RulesScreen />} />
               <Route path="/more/stock" element={<StockScreen />} />

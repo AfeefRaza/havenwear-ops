@@ -29,7 +29,8 @@ A private, mobile-first production & returns tracker for **HavenWear Pakistan**.
 | **Batches** | Active / Complete / Archived tabs, search by ref **or product name** (searches archived too), progress bar, pending count, payment status, infinite scroll. |
 | **Batch detail** | Stats, est. supplier cost vs actual bill, **bulk paste** of 20–500 Shopify product names with live category preview, swipe right = received from Supplier, swipe left = from Return (or tap), multi-select bulk actions, edit/delete with **Undo**, one-tap archive. |
 | **Pending** | Every pending item across active batches, filter by batch, days waiting (red after 7 days), receive directly. Virtualised for long lists. |
-| **Returns in** | Log returned parcels by category with large steppers. |
+| **Returns** | Log returned parcels by category with large steppers. |
+| **Supplier** | Log stock delivered by the supplier by date and category (supplier, challan/reference, optional batch link). Deliveries add to stock; a linked batch shows delivered vs required. |
 | **More** | Rules & categories (test box, unmatched names → “Create rule”, re-apply rules), opening stock & adjustments, export / import, account & devices, settings (auto-archive, PIN lock). |
 
 Offline: the app shell is cached by the service worker, and the last loaded data is shown **read-only** with an “Offline · read-only” badge. Writes are blocked offline with a clear message (offline write-queueing is a planned stretch goal).
@@ -41,7 +42,7 @@ Offline: the app shell is cached by the service worker, and the last loaded data
 * **All data lives in Supabase.** The frontend bundle contains only the Supabase URL and the **anon/publishable** key — both are public by design. Access control is done by Postgres **Row Level Security**, not by hiding the key.
 * **The service_role / `sb_secret_` key is never used** anywhere in this project. CI fails if anything resembling one (or a JWT signing secret) appears in the repo **or in the built `dist/`** — see `scripts/check-secrets.mjs` (plus gitleaks).
 * **RLS is enabled on every table**, no exceptions. Every data table has `workspace_id`; policies allow select/insert/update/delete only when `auth.uid()` is a member of that workspace. Views use `security_invoker = true` and all RPCs are `SECURITY INVOKER`, so they obey the same policies. The anon role has **no table privileges at all** (defence in depth).
-* **Proof:** `supabase/tests/rls_proof.sql` (54 checks: anonymous → 0 rows, non-member → 0 rows and cannot write, member sees own rows, RLS on every table, every view is security_invoker) and `npm run test:rls` (the same against the live REST API).
+* **Proof:** `supabase/tests/rls_proof.sql` (61 checks: anonymous → 0 rows, non-member → 0 rows and cannot write, member sees own rows, RLS on every table, every view is security_invoker) and `npm run test:rls` (the same against the live REST API).
 * **Auth:** email + password, optional magic link. Public sign-ups are **disabled**; you create users yourself. Sessions persist on your device and refresh automatically. “Sign out of this device” also wipes the offline cache and PIN.
 * **Content-Security-Policy** meta tag (injected at build time): scripts only from the app itself; network connections only to your Supabase project. A frame-buster prevents the app from being embedded in another site.
 * **Local storage:** only the Supabase session (localStorage) and, optionally, a salted PBKDF2 hash of your app-lock PIN. The offline data cache lives in IndexedDB on your device, is cleared on sign-out and expires after 7 days.
@@ -59,6 +60,7 @@ The project **“AfeefRaza's Project”** (ref `wqlhgauwsykmbbfheimw`, free plan
 supabase/migrations/20261002000001_core_schema.sql      tables, RLS, seeds, admin helpers
 supabase/migrations/20261002000002_views_and_rpcs.sql   read models + dashboard/re-apply RPCs
 supabase/migrations/20261002000003_import_workbook.sql  atomic Excel import
+supabase/migrations/20261003000004_supplier_deliveries.sql  supplier delivery log
 ```
 
 For a **new** project: open **SQL Editor** in the Supabase dashboard and run each file in order (or `supabase link --project-ref <ref>` then `supabase db push` with the Supabase CLI).
@@ -84,7 +86,7 @@ select private.create_workspace('HavenWear Pakistan', 'you@example.com');
 This makes you the owner and seeds the default categories (T-shirt 850, Hoodie 1400, Trouser 1000, Other 1, Other 2) and keyword rules.
 
 ### 6. Verify RLS (optional but recommended)
-* Paste `supabase/tests/rls_proof.sql` into the SQL editor and run it. The first row must read `SUMMARY … true … 54 passed, 0 failed`. It runs inside a transaction that is rolled back — nothing is left behind.
+* Paste `supabase/tests/rls_proof.sql` into the SQL editor and run it. The first row must read `SUMMARY … true … N passed, 0 failed`. It runs inside a transaction that is rolled back — nothing is left behind.
 * Locally: `npm run test:rls` (needs `.env.local`). To also prove the *non-member* case over the network, create a throwaway user that is **not** in any workspace and run
   `RLS_NONMEMBER_EMAIL=… RLS_NONMEMBER_PASSWORD=… npm run test:rls`.
 
@@ -205,7 +207,7 @@ scripts/           secret scanner, RLS live check, icon generator
 * **Cancelled items** count only in the line count.
 * **Supplier cost (est.)** = Σ qty × unit cost for items received from the supplier, shown against the actual bill.
 * **Usage:** Return % = returns ÷ (returns + supplier); Supplier % likewise; Avg cost/piece = est. supplier cost ÷ supplier pieces.
-* **Stock** per category = opening/adjustments + returns received + made by supplier − used. Pending is shown separately. Red < 0, amber ≤ low-stock level, green above.
+* **Stock** per category = opening/adjustments + returns received + **supplier deliveries** − all items received (from supplier or returns). Supplier pieces used without a logged delivery therefore show as a shortage. Pending is shown separately. Red < 0, amber ≤ low-stock level, green above.
 * **Stages:** No products yet → In progress → Complete → Archived. Archived batches leave working lists but stay in reports and search.
 * **Trend:** return usage % last 7 days vs previous 7 days (by batch date), with zero/no-data handled.
 * Dates are Pakistan time; shown as `10-Sep-26`; money as `PKR 1,400`.

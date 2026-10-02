@@ -1,6 +1,6 @@
 import { Archive, ArchiveRestore, Ban, CheckSquare, ClipboardPaste, Pencil, PackagePlus, RotateCcw, Trash2, Truck, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { PageHeader } from '../components/AppShell'
 import { BatchFormSheet, PaymentPill, StagePill } from '../components/BatchBits'
 import { ItemRow } from '../components/ItemRow'
@@ -118,6 +118,21 @@ export default function BatchDetail() {
             </p>
           )}
         </div>
+        {b.delivered_pieces > 0 && (
+          <Link to="/deliveries" className="flex items-center gap-2 rounded-xl bg-surface-2 p-3 text-sm">
+            <Truck className="size-4 shrink-0 text-muted" aria-hidden />
+            <span className="tabular flex-1">
+              Supplier delivered <strong>{formatInt(b.delivered_pieces)}</strong> of {formatInt(totals.required)} pieces required
+            </span>
+            {b.delivered_pieces < totals.required ? (
+              <span className="text-xs font-semibold text-warn">{formatInt(totals.required - b.delivered_pieces)} short</span>
+            ) : b.delivered_pieces > totals.required ? (
+              <span className="text-xs font-semibold text-info">+{formatInt(b.delivered_pieces - totals.required)} extra</span>
+            ) : (
+              <span className="text-xs font-semibold text-ok">Complete</span>
+            )}
+          </Link>
+        )}
         {b.notes && <p className="whitespace-pre-wrap text-sm text-muted">{b.notes}</p>}
         <div className="flex flex-wrap gap-2">
           {stage === 'complete' && (

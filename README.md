@@ -7,7 +7,7 @@ Installable PWA · Vite + React + TypeScript · Supabase (Postgres + Auth + RLS)
 
 ## Status
 - [x] Phase 0 — scaffold, strict TS, ESLint, Vitest, PWA, CSP, secret scanning CI, Pages deploy
-- [ ] Phase 1 — database, RLS, seeds, RLS proof
+- [x] Phase 1 — database, RLS, seeds, RLS proof
 - [ ] Phase 2 — domain logic + tests
 - [ ] Phase 3 — auth, app shell
 - [ ] Phase 4 — batches & bulk paste

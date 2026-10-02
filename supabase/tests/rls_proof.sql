@@ -25,7 +25,11 @@ declare
   t text;
   n bigint;
   tables text[] := array['workspaces', 'workspace_members', 'categories', 'keyword_rules', 'batches',
-                         'batch_items', 'return_receipts', 'return_receipt_lines', 'stock_adjustments'];
+                         'batch_items', 'return_receipts', 'return_receipt_lines', 'stock_adjustments',
+                         -- read-model views (security_invoker) must be filtered too
+                         'batch_summaries', 'pending_items', 'unmatched_names'];
+  dash jsonb;
+  item_id uuid;
 begin
   insert into auth.users (id, email, aud, role) values
     (a, 'rls-a-' || a || '@test.invalid', 'authenticated', 'authenticated'),
@@ -39,6 +43,7 @@ begin
   insert into public.return_receipts (workspace_id, reference) values (ws, 'RLS') returning id into rr;
   insert into public.return_receipt_lines (workspace_id, receipt_id, category_id, qty) values (ws, rr, cat, 3);
   insert into public.stock_adjustments (workspace_id, category_id, qty, kind) values (ws, cat, 10, 'opening');
+  select id into item_id from public.batch_items where workspace_id = ws limit 1;
 
   ---------------------------------------------------------------- 1. anon
   execute 'set local role anon';
@@ -80,6 +85,11 @@ begin
   delete from public.batches where workspace_id = ws;
   get diagnostics n = row_count;
   insert into rls_results values ('non-member cannot delete', 'batches', n = 0, n || ' rows deleted');
+  dash := public.dashboard(ws, null, null, current_date);
+  insert into rls_results values ('non-member dashboard is empty', 'dashboard()',
+    (dash->'period'->>'lines')::int = 0 and jsonb_array_length(dash->'stock') = 0, dash->>'period');
+  n := public.apply_item_classifications(jsonb_build_array(jsonb_build_object('id', item_id, 'unit_cost_pkr', 1)));
+  insert into rls_results values ('non-member cannot re-apply rules', 'apply_item_classifications()', n = 0, n || ' rows updated');
   execute 'reset role';
 
   ---------------------------------------------------------------- 3. member (sanity)
@@ -99,6 +109,19 @@ select 'RLS enabled', c.relname, c.relrowsecurity, case when c.relrowsecurity th
 from pg_class c join pg_namespace ns on ns.oid = c.relnamespace
 where ns.nspname = 'public' and c.relkind = 'r';
 
-select check_name, tbl, pass, detail from rls_results order by pass, check_name, tbl;
+-- Every view must run with the caller's permissions (otherwise it would bypass RLS).
+insert into rls_results
+select 'view is security_invoker', c.relname, coalesce(c.reloptions @> array['security_invoker=true'], false),
+       coalesce(array_to_string(c.reloptions, ','), 'no options')
+from pg_class c join pg_namespace ns on ns.oid = c.relnamespace
+where ns.nspname = 'public' and c.relkind = 'v';
+
+-- Summary first, then every individual check.
+select 'SUMMARY' as check_name, '' as tbl, bool_and(pass) as pass,
+       count(*) filter (where pass) || ' passed, ' || count(*) filter (where not pass) || ' failed' as detail
+from rls_results
+union all
+(select check_name, tbl, pass, detail from rls_results order by pass, check_name, tbl);
+
 
 rollback;

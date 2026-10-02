@@ -19,7 +19,8 @@ if (!url || !key) {
 }
 
 const TABLES = ['workspaces', 'workspace_members', 'categories', 'keyword_rules', 'batches',
-  'batch_items', 'return_receipts', 'return_receipt_lines', 'stock_adjustments']
+  'batch_items', 'return_receipts', 'return_receipt_lines', 'stock_adjustments',
+  'batch_summaries', 'pending_items', 'unmatched_names']
 
 let failed = 0
 

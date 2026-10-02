@@ -28,6 +28,7 @@ function clampQty(n: number): number {
 
 export function parsePasteLine(raw: string): { name: string; qty: number } | null {
   // Strip control characters (keep tabs for column detection).
+  // eslint-disable-next-line no-control-regex -- intentionally matching control chars
   let line = raw.replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '').trimEnd()
   if (!line.trim()) return null
 

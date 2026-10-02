@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { billVariance, computeTotals, type TotalsItem } from './totals'
+import { billVariance, computeTotals, usageRatios, type TotalsItem } from './totals'
 
 const item = (o: Partial<TotalsItem>): TotalsItem => ({
   qty: 1, status: 'pending', received_from: null, unit_cost_pkr: 0, ...o,
@@ -53,4 +53,13 @@ describe('computeTotals', () => {
 describe('billVariance', () => {
   it('null when no bill', () => expect(billVariance(null, 100)).toBeNull())
   it('positive when billed more than estimate', () => expect(billVariance(1200, 1000)).toBe(200))
+})
+
+describe('usageRatios', () => {
+  it('matches computeTotals for the same sums', () => {
+    expect(usageRatios(1, 3, 3100)).toEqual({ receivedPieces: 4, returnPct: 0.25, supplierPct: 0.75, avgSupplierCost: 3100 / 3 })
+  })
+  it('zero received → nulls', () => {
+    expect(usageRatios(0, 0, 0)).toEqual({ receivedPieces: 0, returnPct: null, supplierPct: null, avgSupplierCost: null })
+  })
 })

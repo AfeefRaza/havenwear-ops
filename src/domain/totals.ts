@@ -54,7 +54,6 @@ export function computeTotals(items: readonly TotalsItem[]): Totals {
     }
   }
 
-  const received = fromReturns + fromSupplier
   return {
     lines: items.length,
     activeLines: items.length - cancelledLines,
@@ -62,10 +61,18 @@ export function computeTotals(items: readonly TotalsItem[]): Totals {
     pendingLines,
     required,
     pendingPieces,
-    receivedPieces: received,
     fromReturns,
     fromSupplier,
     estSupplierCost,
+    ...usageRatios(fromReturns, fromSupplier, estSupplierCost),
+  }
+}
+
+/** Shared by batch totals and the dashboard (which receives pre-aggregated sums from Postgres). */
+export function usageRatios(fromReturns: number, fromSupplier: number, estSupplierCost: number) {
+  const received = fromReturns + fromSupplier
+  return {
+    receivedPieces: received,
     returnPct: received > 0 ? fromReturns / received : null,
     supplierPct: received > 0 ? fromSupplier / received : null,
     avgSupplierCost: fromSupplier > 0 ? estSupplierCost / fromSupplier : null,

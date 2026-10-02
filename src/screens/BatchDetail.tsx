@@ -182,12 +182,12 @@ export default function BatchDetail() {
           action={
             !archived && (
               <Button variant="primary" icon={ClipboardPaste} onClick={() => setPasteOpen(true)} disabled={!online}>
-                Paste product names
+                Add products
               </Button>
             )
           }
         >
-          Copy the product names from your Shopify orders and paste them all at once — the app detects each category and cost.
+          Import your Shopify orders export (CSV) or paste product names — the app detects each category and cost.
         </EmptyState>
       ) : (
         <div className="flex flex-col gap-4">
@@ -232,7 +232,7 @@ export default function BatchDetail() {
               </>
             ) : (
               <Button variant="primary" size="lg" block icon={ClipboardPaste} onClick={() => setPasteOpen(true)} disabled={!online}>
-                Paste products
+                Add products
               </Button>
             )}
           </div>

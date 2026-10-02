@@ -12,11 +12,12 @@ A private, mobile-first production & returns tracker for **HavenWear Pakistan**.
 3. [First-time setup](#first-time-setup) — Supabase, your user, GitHub, Pages
 4. [Install on iPhone / Android](#install-on-iphone--android)
 5. [Back up your data](#back-up-your-data)
-6. [Import the old Excel workbook](#import-the-old-excel-workbook)
-7. [Add a team member](#add-a-team-member)
-8. [Local development](#local-development)
-9. [Project structure](#project-structure)
-10. [Business rules](#business-rules)
+6. [Add products from a Shopify orders export](#add-products-from-a-shopify-orders-export)
+7. [Import the old Excel workbook](#import-the-old-excel-workbook)
+8. [Add a team member](#add-a-team-member)
+9. [Local development](#local-development)
+10. [Project structure](#project-structure)
+11. [Business rules](#business-rules)
 
 ---
 
@@ -116,6 +117,16 @@ When a new version is deployed, a banner offers **Update** — tap it to reload 
 
 ---
 
+## Add products from a Shopify orders export
+
+In Shopify: **Orders → (filter, e.g. Unfulfilled) → Export → Current page / selected orders → CSV for Excel**. In the app: open a batch → **Add products → Import Shopify orders CSV**.
+
+* One batch line per order line item (multi-item orders included); the order number is saved in the item's notes ().
+* Quantity comes from **Lineitem quantity**; pack products such as “(PACK OF TWO)”, “Pack of 3” or “2-Pack” are multiplied into pieces.
+* Orders with **Cancelled at** set in Shopify are skipped. (Orders you only *tagged* as cancelled are still included — remove them from the export or cancel the line in the app.)
+* Orders already imported into any batch are detected and skipped by default (toggle in the preview).
+* The file is read **in your browser only**. Customer names, emails, phones and addresses are ignored — only product name, quantity and order number are saved.
+
 ## Import the old Excel workbook
 
 **More → Export / Import → Choose .xlsx file** and pick `Havenwear_Production_Returns_Batch_Tracker_v2.xlsx`.
@@ -170,6 +181,7 @@ npm run dev                     # http://localhost:5173
 src/domain/        Pure business logic + Zod schemas (fully unit-tested)
   classify.ts        keyword matching, unit cost, re-apply detection
   paste.ts           bulk-paste parser (× 2, tabs, bullets)
+  shopifyCsv.ts      Shopify orders CSV → lines (CSV parser, pack sizes, cancelled orders)
   totals.ts          pieces, supplier cost, usage %, avg cost
   stock.ts           stock per category + status
   stage.ts           batch stage + auto-archive rule

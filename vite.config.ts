@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import pkg from './package.json' with { type: 'json' }
 
 /**
  * Injects the Content-Security-Policy meta tag at build time only.
@@ -50,6 +51,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: mode === 'test' ? '/' : base,
+    define: { __APP_VERSION__: JSON.stringify(pkg.version) },
     plugins: [
       react(),
       tailwindcss(),
@@ -86,16 +88,6 @@ export default defineConfig(({ mode }) => {
     build: {
       sourcemap: false,
       chunkSizeWarningLimit: 900,
-      rollupOptions: {
-        output: {
-          manualChunks(id: string) {
-            if (id.includes('node_modules/recharts') || id.includes('node_modules/d3-')) return 'charts'
-            if (id.includes('node_modules/xlsx')) return 'xlsx'
-            if (id.includes('node_modules/@supabase')) return 'supabase'
-            return undefined
-          },
-        },
-      },
     },
     test: {
       environment: 'node',

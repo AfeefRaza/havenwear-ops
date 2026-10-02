@@ -1,5 +1,4 @@
 @import 'tailwindcss';
-@import '@fontsource-variable/inter';
 
 @custom-variant dark (@media (prefers-color-scheme: dark));
 
@@ -20,8 +19,8 @@
   --c-bad: #b42318;
   --c-bad-bg: #fdecea;
   --c-info: #1d4ed8;
-  --c-chart-return: #0e9384;
-  --c-chart-supplier: #1f2a44;
+  --c-chart-return: #eb6834;
+  --c-chart-supplier: #2a78d6;
   color-scheme: light;
 }
 
@@ -42,8 +41,8 @@
     --c-bad: #f87171;
     --c-bad-bg: #3a1617;
     --c-info: #93b4ff;
-    --c-chart-return: #2dd4bf;
-    --c-chart-supplier: #9fb3e0;
+    --c-chart-return: #d95926;
+    --c-chart-supplier: #3987e5;
     color-scheme: dark;
   }
 }

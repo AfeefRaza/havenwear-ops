@@ -8,7 +8,7 @@ import { Button, ErrorNote } from './components/ui'
 import { AuthProvider, useAuth } from './lib/auth'
 import { CACHE_MAX_AGE, persister, queryClient } from './lib/queryClient'
 import { configError } from './lib/supabase'
-import { useWorkspaceQuery, WorkspaceProvider } from './lib/workspace'
+import { SupplierProvider, useWorkspaceQuery, WorkspaceProvider } from './lib/workspace'
 
 const Home = lazy(() => import('./screens/Home'))
 const Batches = lazy(() => import('./screens/Batches'))
@@ -22,6 +22,11 @@ const StockScreen = lazy(() => import('./screens/Stock'))
 const DataScreen = lazy(() => import('./screens/DataIO'))
 const AccountScreen = lazy(() => import('./screens/Account'))
 const SettingsScreen = lazy(() => import('./screens/Settings'))
+const ProductionScreen = lazy(() => import('./screens/Production'))
+const ProductionRunScreen = lazy(() => import('./screens/ProductionRun'))
+const ShopifyProductsScreen = lazy(() => import('./screens/ShopifyProducts'))
+const StockIn = lazy(() => import('./screens/StockIn'))
+const SupplierPortal = lazy(() => import('./portal/SupplierPortal'))
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   override state = { error: null as Error | null }
@@ -56,9 +61,20 @@ function Gate() {
     )
   }
   if (!ws.data) return <NoWorkspaceScreen />
+  if (ws.data.supplier) {
+    return (
+      <SupplierProvider value={ws.data.supplier}>
+        <PinLock>
+          <Suspense fallback={<Splash />}>
+            <SupplierPortal />
+          </Suspense>
+        </PinLock>
+      </SupplierProvider>
+    )
+  }
 
   return (
-    <WorkspaceProvider value={ws.data}>
+    <WorkspaceProvider value={ws.data.internal!}>
       <PinLock>
         <AppShell>
           <Suspense fallback={<div className="pt-20"><Splash /></div>}>
@@ -67,8 +83,12 @@ function Gate() {
               <Route path="/batches" element={<Batches />} />
               <Route path="/batches/:id" element={<BatchDetail />} />
               <Route path="/pending" element={<Pending />} />
+              <Route path="/stock-in" element={<StockIn />} />
               <Route path="/returns" element={<Returns />} />
               <Route path="/deliveries" element={<Deliveries />} />
+              <Route path="/production" element={<ProductionScreen />} />
+              <Route path="/production/:id" element={<ProductionRunScreen />} />
+              <Route path="/more/shopify" element={<ShopifyProductsScreen />} />
               <Route path="/more" element={<More />} />
               <Route path="/more/rules" element={<RulesScreen />} />
               <Route path="/more/stock" element={<StockScreen />} />

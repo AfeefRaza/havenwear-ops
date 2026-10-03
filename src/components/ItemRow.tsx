@@ -1,4 +1,4 @@
-import { Ban, CheckCircle2, Clock, PackageCheck, RotateCcw, TriangleAlert, Truck } from 'lucide-react'
+import { Ban, CheckCircle2, Clock, Factory, PackageCheck, RotateCcw, TriangleAlert, Truck } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { formatDate, formatPKR } from '../domain/format'
 import type { Category, Item, ReceivedFromT } from '../domain/schemas'
@@ -36,7 +36,9 @@ export function ItemRow({
 }) {
   const cat = categories.find((c) => c.id === item.resolved_category_id)
   const pending = item.status === 'pending'
-  const canSwipe = pending && !selectMode && !readOnly
+  const inProduction = pending && !!item.production_item_id
+  const planned = pending && item.supplier_planned && !inProduction
+  const canSwipe = pending && !inProduction && !selectMode && !readOnly
   const [dx, setDx] = useState(0)
   const [dragging, setDragging] = useState(false)
   const startX = useRef<number | null>(null)
@@ -54,7 +56,7 @@ export function ItemRow({
           aria-hidden
         >
           {dx > 0 ? (
-            <span className="flex items-center gap-2"><Truck className="size-5" /> Supplier</span>
+            <span className="flex items-center gap-2"><Truck className="size-5" /> {planned ? 'Un-allocate' : 'Supplier'}</span>
           ) : (
             <span className="flex items-center gap-2">Return <RotateCcw className="size-5" /></span>
           )}
@@ -129,16 +131,22 @@ export function ItemRow({
         </button>
         {!selectMode && (
           <div className="flex shrink-0 items-center gap-1.5">
-            {pending && !readOnly ? (
+            {inProduction ? (
+              <Pill tone="info" icon={Factory}>In production</Pill>
+            ) : pending && !readOnly ? (
               <>
                 <button
                   type="button"
                   onClick={() => onReceive(item, 'supplier')}
-                  className="flex min-h-11 flex-col items-center justify-center rounded-xl bg-ok-bg px-2.5 text-[11px] font-semibold text-ok active:scale-95"
-                  aria-label={`Mark ${item.product_name} received from supplier`}
+                  className={cn(
+                    'flex min-h-11 flex-col items-center justify-center rounded-xl px-2.5 text-[11px] font-semibold active:scale-95',
+                    planned ? 'bg-primary text-primary-fg' : 'bg-ok-bg text-ok',
+                  )}
+                  aria-pressed={planned}
+                  aria-label={planned ? `${item.product_name}: allocated to supplier. Tap to un-allocate` : `Allocate ${item.product_name} to supplier`}
                 >
                   <Truck className="size-4" aria-hidden />
-                  Supplier
+                  {planned ? 'Supplier ✓' : 'Supplier'}
                 </button>
                 <button
                   type="button"

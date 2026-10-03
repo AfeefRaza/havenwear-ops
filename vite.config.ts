@@ -10,7 +10,7 @@ import pkg from './package.json' with { type: 'json' }
  * (Vite's dev server relies on inline scripts for HMR, so CSP is not applied in dev.)
  * GitHub Pages cannot send HTTP headers, so a meta tag is the only option there.
  */
-function cspPlugin(supabaseUrl: string): Plugin {
+function cspPlugin(supabaseUrl: string, shopifyStore: string): Plugin {
   return {
     name: 'havenwear-csp',
     apply: 'build',
@@ -27,9 +27,11 @@ function cspPlugin(supabaseUrl: string): Plugin {
         "script-src 'self'",
         // Radix + Recharts set inline style attributes; this does not allow inline scripts.
         "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: blob:",
+        // Normal Shopify product pictures for the production workflow.
+        "img-src 'self' data: blob: https://cdn.shopify.com",
         "font-src 'self'",
-        `connect-src 'self' ${origin} ${wss}`,
+        // Supabase API + the store's public products feed (pictures/sizes/colours; no credentials).
+        `connect-src 'self' ${origin} ${wss} https://${shopifyStore}`,
         "worker-src 'self'",
         "manifest-src 'self'",
         "object-src 'none'",
@@ -48,6 +50,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const base = env.VITE_BASE ?? '/havenwear-ops/'
   const supabaseUrl = env.VITE_SUPABASE_URL ?? ''
+  const shopifyStore = env.VITE_SHOPIFY_STORE || 'havenwearpakistan.com'
 
   return {
     base: mode === 'test' ? '/' : base,
@@ -55,7 +58,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
-      cspPlugin(supabaseUrl),
+      cspPlugin(supabaseUrl, shopifyStore),
       VitePWA({
         registerType: 'prompt',
         injectRegister: null,

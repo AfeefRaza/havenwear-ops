@@ -10,7 +10,33 @@ interface WorkspaceState {
   userId: string
 }
 
+export interface SupplierState {
+  workspaceId: string
+  role: 'tshirt_supplier' | 'dtf_supplier'
+  userId: string
+}
+
 const Ctx = createContext<WorkspaceState | null>(null)
+const SupplierCtx = createContext<SupplierState | null>(null)
+
+export function SupplierProvider({ value, children }: { value: SupplierState; children: ReactNode }) {
+  return <SupplierCtx.Provider value={value}>{children}</SupplierCtx.Provider>
+}
+
+export function useSupplier(): SupplierState {
+  const v = useContext(SupplierCtx)
+  if (!v) throw new Error('useSupplier outside SupplierProvider')
+  return v
+}
+
+/** Workspace id for either an internal user or a supplier (production hooks are shared). */
+export function useAnyWorkspaceId(): string {
+  const internal = useContext(Ctx)
+  const supplier = useContext(SupplierCtx)
+  const id = internal?.workspace.id ?? supplier?.workspaceId
+  if (!id) throw new Error('No workspace')
+  return id
+}
 
 export function useWorkspaceQuery() {
   const { session } = useAuth()
@@ -26,13 +52,18 @@ export function useWorkspaceQuery() {
         .order('created_at')
       if (e1) throw e1
       const members = parseRows(MemberRow, mem, 'membership')
-      const first = members[0]
+      // Internal membership wins if a user somehow has both.
+      const first = members.find((m) => m.role === 'owner' || m.role === 'member') ?? members[0]
       if (!first) return null
+      if (first.role === 'tshirt_supplier' || first.role === 'dtf_supplier') {
+        // Suppliers cannot read the workspaces table (settings are private) — the portal only needs the id.
+        return { supplier: { workspaceId: first.workspace_id, role: first.role, userId: userId! } satisfies SupplierState }
+      }
       const { data: ws, error: e2 } = await supabase.from('workspaces').select('*').eq('id', first.workspace_id)
       if (e2) throw e2
       const [workspace] = parseRows(WorkspaceRow, ws, 'workspace')
       if (!workspace) return null
-      return { workspace, role: first.role, userId: userId! } satisfies WorkspaceState
+      return { internal: { workspace, role: first.role, userId: userId! } satisfies WorkspaceState }
     },
   })
 }

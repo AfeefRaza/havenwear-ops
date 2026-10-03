@@ -1,16 +1,19 @@
-import { Archive, ArchiveRestore, Ban, CheckSquare, ClipboardPaste, Pencil, PackagePlus, RotateCcw, Trash2, Truck, X } from 'lucide-react'
+import { Archive, ArchiveRestore, Ban, CheckSquare, ClipboardPaste, Factory, Pencil, PackagePlus, RotateCcw, Trash2, Truck, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { PageHeader } from '../components/AppShell'
 import { BatchFormSheet, PaymentPill, StagePill } from '../components/BatchBits'
 import { ItemRow } from '../components/ItemRow'
 import { ItemEditSheet, PasteSheet } from '../components/ItemSheets'
+import { DtfBadge, ProductionBar } from '../components/ProductionBits'
+import { PushSheet } from '../components/PushSheet'
 import { Sheet } from '../components/Sheet'
 import { useToast } from '../components/Toast'
 import { Button, Card, EmptyState, ErrorNote, ListSkeleton, ProgressBar, SectionTitle } from '../components/ui'
 import { useArchiveBatch, useDeleteBatch } from '../data/mutations'
 import { useBatch, useBatchItems, useCategories, useRules } from '../data/queries'
 import { useItemActions } from '../data/useItemActions'
+import { useRunSummaries } from '../data/production'
 import { formatDate, formatInt, formatPKR, formatPct } from '../domain/format'
 import type { Item } from '../domain/schemas'
 import { batchStage } from '../domain/stage'
@@ -36,6 +39,8 @@ export default function BatchDetail() {
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [pushOpen, setPushOpen] = useState(false)
+  const runs = useRunSummaries()
 
   const items = useMemo(() => itemsQ.data ?? [], [itemsQ.data])
   const categories = cats.data ?? []
@@ -119,7 +124,7 @@ export default function BatchDetail() {
           )}
         </div>
         {b.delivered_pieces > 0 && (
-          <Link to="/deliveries" className="flex items-center gap-2 rounded-xl bg-surface-2 p-3 text-sm">
+          <Link to="/stock-in?tab=supplier" className="flex items-center gap-2 rounded-xl bg-surface-2 p-3 text-sm">
             <Truck className="size-4 shrink-0 text-muted" aria-hidden />
             <span className="tabular flex-1">
               Supplier delivered <strong>{formatInt(b.delivered_pieces)}</strong> of {formatInt(totals.required)} pieces required
@@ -163,6 +168,15 @@ export default function BatchDetail() {
           )}
         </div>
       </Card>
+
+      <ProductionCard
+        run={runs.data?.find((r) => r.batch_id === b.id)}
+        toPush={items.filter((i) => i.status === 'pending' && i.supplier_planned && !i.production_item_id)}
+        allocatable={items.filter((i) => i.status === 'pending' && !i.supplier_planned && !i.production_item_id).length}
+        archived={archived}
+        online={online}
+        onPush={() => setPushOpen(true)}
+      />
 
       {archived && (
         <p className="mt-3 rounded-xl bg-surface-2 p-3 text-sm text-muted">
@@ -220,7 +234,7 @@ export default function BatchDetail() {
                     selected={selected.has(it.id)}
                     onToggle={toggle}
                     onOpen={setEditing}
-                    onReceive={(item, from) => actions.receive([item], from)}
+                    onReceive={(item, from) => (from === 'supplier' ? void actions.allocate([item], !item.supplier_planned) : actions.receive([item], 'return'))}
                   />
                 ))}
               </ul>
@@ -236,10 +250,10 @@ export default function BatchDetail() {
             {selectMode ? (
               <>
                 <span className="tabular self-center px-2 text-sm font-semibold">{selected.size}</span>
-                <Button className="flex-1 px-2" variant="ok" icon={Truck} disabled={!selected.size || !online} onClick={() => { actions.receive(selectedItems.filter((i) => i.status !== 'received' || i.received_from !== 'supplier'), 'supplier'); exitSelect() }}>
+                <Button className="flex-1 px-2" variant="ok" icon={Truck} disabled={!selected.size || !online} onClick={() => { void actions.allocate(selectedItems, true); exitSelect() }}>
                   Supplier
                 </Button>
-                <Button className="flex-1 px-2" icon={RotateCcw} disabled={!selected.size || !online} onClick={() => { actions.receive(selectedItems, 'return'); exitSelect() }}>
+                <Button className="flex-1 px-2" icon={RotateCcw} disabled={!selected.size || !online} onClick={() => { actions.receive(selectedItems.filter((i) => !i.production_item_id), 'return'); exitSelect() }}>
                   Return
                 </Button>
                 <Button className="px-2" icon={Ban} aria-label="Cancel selected items" disabled={!selected.size || !online} onClick={() => { actions.cancel(selectedItems); exitSelect() }} />
@@ -255,6 +269,7 @@ export default function BatchDetail() {
       )}
       <div className="h-20" aria-hidden />
 
+      <PushSheet open={pushOpen} onOpenChange={setPushOpen} batchId={b.id} items={items} />
       <PasteSheet open={pasteOpen} onOpenChange={setPasteOpen} batchId={b.id} rules={rules.data ?? []} categories={categories} />
       <BatchFormSheet open={editOpen} onOpenChange={setEditOpen} batch={b} />
       <ItemEditSheet
@@ -300,5 +315,52 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'ba
       <dt className="text-[11px] text-muted">{label}</dt>
       <dd className={`text-lg font-semibold ${tone === 'bad' ? 'text-bad' : ''}`}>{value}</dd>
     </div>
+  )
+}
+
+function ProductionCard({
+  run,
+  toPush,
+  allocatable,
+  archived,
+  online,
+  onPush,
+}: {
+  run: import('../data/production').RunSummary | undefined
+  toPush: Item[]
+  allocatable: number
+  archived: boolean
+  online: boolean
+  onPush: () => void
+}) {
+  const pieces = toPush.reduce((s, i) => s + i.qty, 0)
+  if (!run && !toPush.length && !allocatable) return null
+  return (
+    <Card className="mt-3 flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <Factory className="size-5 text-muted" aria-hidden />
+        <h2 className="flex-1 text-sm font-semibold">Supplier production</h2>
+        {run && <DtfBadge status={run.dtf_status} />}
+      </div>
+      {run ? (
+        <Link to={`/production/${run.id}`} className="flex flex-col gap-2">
+          <ProductionBar required={run.required} ready={run.ready} received={run.received} />
+          <span className="text-xs text-muted">
+            {run.ready_not_received > 0 && <strong className="text-warn">{run.ready_not_received} ready but not received · </strong>}
+            {run.open_issues > 0 && <strong className="text-bad">{run.open_issues} open problem{run.open_issues === 1 ? '' : 's'} · </strong>}
+            Open production details →
+          </span>
+        </Link>
+      ) : (
+        <p className="text-sm text-muted">
+          Tap <strong>Supplier</strong> on items that must be manufactured, then push them. Items fulfilled from Return stock are not pushed.
+        </p>
+      )}
+      {!archived && toPush.length > 0 && (
+        <Button variant="primary" size="lg" block icon={Factory} disabled={!online} onClick={onPush}>
+          {run ? 'Push new items' : 'Push batch to production'} · {toPush.length} line{toPush.length === 1 ? '' : 's'}, {pieces} pcs
+        </Button>
+      )}
+    </Card>
   )
 }

@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Boxes, Clock, Home, Menu, PackageOpen, RefreshCw, Truck, WifiOff } from 'lucide-react'
+import { ArrowLeft, Boxes, Clock, Factory, Home, Menu, PackageOpen, RefreshCw, WifiOff } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useRegisterSW } from 'virtual:pwa-register/react'
@@ -17,8 +17,8 @@ const TABS = [
   { to: '/', label: 'Home', icon: Home, end: true },
   { to: '/batches', label: 'Batches', icon: Boxes },
   { to: '/pending', label: 'Pending', icon: Clock },
-  { to: '/returns', label: 'Returns', icon: PackageOpen },
-  { to: '/deliveries', label: 'Supplier', icon: Truck },
+  { to: '/production', label: 'Production', icon: Factory },
+  { to: '/stock-in', label: 'Stock in', icon: PackageOpen },
   { to: '/more', label: 'More', icon: Menu },
 ]
 

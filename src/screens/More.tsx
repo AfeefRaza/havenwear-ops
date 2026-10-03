@@ -1,10 +1,11 @@
-import { ChevronRight, DatabaseBackup, Scale, Settings, Tags, UserRound, type LucideIcon } from 'lucide-react'
+import { ChevronRight, DatabaseBackup, Scale, Settings, ShoppingBag, Tags, UserRound, type LucideIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/AppShell'
 import { useWorkspace } from '../lib/workspace'
 
 const LINKS: { to: string; label: string; hint: string; icon: LucideIcon }[] = [
   { to: '/more/rules', label: 'Rules & categories', hint: 'Keywords, costs, unmatched names', icon: Tags },
+  { to: '/more/shopify', label: 'Shopify products', hint: 'Product pictures + front/back print settings', icon: ShoppingBag },
   { to: '/more/stock', label: 'Opening stock & adjustments', hint: 'Starting stock and stock counts', icon: Scale },
   { to: '/more/data', label: 'Export / Import', hint: 'Backup to Excel or JSON, import workbook', icon: DatabaseBackup },
   { to: '/more/account', label: 'Account & devices', hint: 'Sign out, team members', icon: UserRound },

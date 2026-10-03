@@ -20,7 +20,8 @@ if (!url || !key) {
 
 const TABLES = ['workspaces', 'workspace_members', 'categories', 'keyword_rules', 'batches',
   'batch_items', 'return_receipts', 'return_receipt_lines', 'stock_adjustments', 'supplier_deliveries', 'supplier_delivery_lines',
-  'batch_summaries', 'pending_items', 'unmatched_names']
+  'batch_summaries', 'pending_items', 'unmatched_names',
+  'shopify_products', 'shopify_variants', 'production_runs', 'production_items', 'production_issues', 'production_events', 'production_run_summaries']
 
 let failed = 0
 

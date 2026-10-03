@@ -1,0 +1,179 @@
+import { AlertTriangle, CheckCircle2, Clock, FileCheck2, FileClock, ImageOff, Shirt } from 'lucide-react'
+import { useState } from 'react'
+import type { IssueT, ProdItemT, RunSummary } from '../data/production'
+import { useReportIssue } from '../data/production'
+import { ISSUE_LABEL, isDtfIssue, itemProgress, MAIN_ISSUES, OTHER_ISSUES, type IssueKind } from '../domain/production'
+import { cn, useOnline } from '../lib/hooks'
+import { Sheet } from './Sheet'
+import { Button, Pill, Stepper, TextField } from './ui'
+
+/** Normal Shopify product picture (lazy-loaded, sized for phones). */
+export function ProductImage({ src, alt, size = 'md' }: { src: string | null; alt: string; size?: 'sm' | 'md' | 'lg' }) {
+  const [broken, setBroken] = useState(false)
+  const box = size === 'sm' ? 'size-14' : size === 'lg' ? 'size-28' : 'size-20'
+  if (!src || broken) {
+    return (
+      <div className={cn(box, 'grid shrink-0 place-items-center rounded-xl bg-surface-2 text-muted')} role="img" aria-label={`${alt} (no picture)`}>
+        <ImageOff className="size-5" aria-hidden />
+      </div>
+    )
+  }
+  const w = size === 'lg' ? 400 : 240
+  const url = src.includes('?') ? `${src}&width=${w}` : `${src}?width=${w}`
+  return (
+    <img
+      src={url}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      referrerPolicy="no-referrer"
+      onError={() => setBroken(true)}
+      className={cn(box, 'shrink-0 rounded-xl bg-surface-2 object-cover')}
+    />
+  )
+}
+
+export function PrintBadges({ front, back, frontQty, backQty }: { front: boolean; back: boolean; frontQty?: number; backQty?: number }) {
+  return (
+    <span className="flex flex-wrap gap-1">
+      <Pill tone={front ? 'info' : 'neutral'}>{front ? `Front${frontQty != null ? `: ${frontQty}` : ' ✓'}` : 'No front'}</Pill>
+      <Pill tone={back ? 'info' : 'neutral'}>{back ? `Back${backQty != null ? `: ${backQty}` : ' ✓'}` : 'No back'}</Pill>
+    </span>
+  )
+}
+
+export function DtfBadge({ status }: { status: RunSummary['dtf_status'] }) {
+  return status === 'file_ready' ? (
+    <Pill tone="ok" icon={FileCheck2}>DTF file ready</Pill>
+  ) : (
+    <Pill tone="warn" icon={FileClock}>DTF waiting</Pill>
+  )
+}
+
+/** Required / Ready / Received bar with the "ready but not received" gap highlighted. */
+export function ProductionBar({ required, ready, received }: { required: number; ready: number; received: number }) {
+  const pct = (n: number) => (required > 0 ? Math.min(100, (n / required) * 100) : 0)
+  return (
+    <div className="flex flex-col gap-1">
+      <div
+        className="relative h-2.5 w-full overflow-hidden rounded-full bg-surface-2"
+        role="img"
+        aria-label={`${received} received, ${ready} ready of ${required} required`}
+      >
+        <div className="absolute inset-y-0 left-0 rounded-full bg-warn/60" style={{ width: `${pct(ready)}%` }} />
+        <div className="absolute inset-y-0 left-0 rounded-full bg-ok" style={{ width: `${pct(received)}%` }} />
+      </div>
+      <div className="tabular flex flex-wrap gap-x-3 text-xs text-muted">
+        <span>Required <strong className="text-text">{required}</strong></span>
+        <span>Ready <strong className="text-text">{ready}</strong></span>
+        <span>Received <strong className="text-text">{received}</strong></span>
+      </div>
+    </div>
+  )
+}
+
+export function ItemHeader({ it, children }: { it: ProdItemT; children?: React.ReactNode }) {
+  const label = [it.color, it.size ?? it.variant_title].filter(Boolean).join(' · ')
+  return (
+    <div className="flex gap-3">
+      <ProductImage src={it.image_url} alt={it.product_title} />
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold leading-snug">{it.product_title}</div>
+        {label && <div className="text-sm text-muted">{label}</div>}
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          <PrintBadges front={it.front_print} back={it.back_print} />
+          <Pill tone="neutral" icon={Shirt}>Qty {it.qty_required}</Pill>
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+export function IssueStatusPill({ issue }: { issue: IssueT }) {
+  if (issue.status === 'resolved') return <Pill tone="ok" icon={CheckCircle2}>Solved</Pill>
+  if (issue.status === 'reprint_ready') return <Pill tone="ok" icon={CheckCircle2}>Reprint ready</Pill>
+  return issue.dtf_relevant ? <Pill tone="bad" icon={Clock}>Waiting for DTF reprint</Pill> : <Pill tone="bad" icon={AlertTriangle}>Open</Pill>
+}
+
+export function IssueLine({ issue, item }: { issue: IssueT; item?: ProdItemT }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      <AlertTriangle className="size-4 shrink-0 text-bad" aria-hidden />
+      <span className="font-medium">{ISSUE_LABEL[issue.kind]}</span>
+      <span className="tabular">× {issue.qty}</span>
+      {item && <span className="text-muted">· {item.product_title}{item.size ? ` (${item.size})` : ''}</span>}
+      <IssueStatusPill issue={issue} />
+      {issue.note && <span className="w-full text-xs text-muted">“{issue.note}”</span>}
+    </div>
+  )
+}
+
+export function ReportProblemSheet({ item, onClose }: { item: ProdItemT | null; onClose: () => void }) {
+  const report = useReportIssue()
+  const online = useOnline()
+  const [kind, setKind] = useState<IssueKind>('front_missing')
+  const [qty, setQty] = useState(1)
+  const [note, setNote] = useState('')
+  const [shown, setShown] = useState<string | null>(null)
+  if (item && item.id !== shown) {
+    setShown(item.id)
+    setKind('front_missing')
+    setQty(1)
+    setNote('')
+  }
+  const max = Math.max(item?.qty_required ?? 1, 1)
+  return (
+    <Sheet
+      open={!!item}
+      onOpenChange={(o) => !o && onClose()}
+      title="Report a problem"
+      description={item ? `${item.product_title}${item.size ? ` · ${item.size}` : ''}` : undefined}
+      footer={
+        <Button
+          variant="danger"
+          size="lg"
+          block
+          icon={AlertTriangle}
+          disabled={!online}
+          loading={report.isPending}
+          onClick={() => item && report.mutate({ item: item.id, kind, qty, note: note.trim() || null }, { onSuccess: onClose })}
+        >
+          Report {ISSUE_LABEL[kind].toLowerCase()} · {qty} pc{qty === 1 ? '' : 's'}
+        </Button>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-1 text-sm font-medium">What is wrong?</legend>
+          <div className="grid grid-cols-2 gap-2">
+            {[...MAIN_ISSUES, ...OTHER_ISSUES].map((k) => (
+              <button
+                key={k}
+                type="button"
+                aria-pressed={kind === k}
+                onClick={() => setKind(k)}
+                className={cn(
+                  'min-h-12 rounded-xl border px-3 text-left text-sm font-medium',
+                  kind === k ? 'border-bad bg-bad-bg text-bad' : 'border-border bg-surface',
+                  !MAIN_ISSUES.includes(k) && 'text-muted',
+                )}
+              >
+                {ISSUE_LABEL[k]}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        <p className="rounded-xl bg-surface-2 p-3 text-xs text-muted">
+          {isDtfIssue(kind) ? 'This print problem is sent to the DTF supplier automatically as a reprint request.' : 'This problem stays between you and Havenwear (it does not go to the DTF supplier).'}
+        </p>
+        <Stepper label="Affected pieces" value={qty} onChange={setQty} min={1} max={max} />
+        <TextField label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
+      </div>
+    </Sheet>
+  )
+}
+
+export function progressOf(it: ProdItemT) {
+  return itemProgress(it)
+}

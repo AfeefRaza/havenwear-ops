@@ -340,7 +340,7 @@ export function ItemEditSheet({
                   Mark pending
                 </Button>
               )}
-              {item.status === 'pending' && (
+              {item.status === 'pending' && !item.production_item_id && (
                 <Button icon={RotateCcw} onClick={() => { onStatus(item, 'received', 'return'); onClose() }} disabled={!online}>
                   From return
                 </Button>

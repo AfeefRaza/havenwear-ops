@@ -84,7 +84,7 @@ export default function Pending() {
               </Pill>
             )}
           </div>
-          <p className="px-1 text-xs text-muted">Swipe right for Supplier, left for Return — or tap the buttons.</p>
+          <p className="px-1 text-xs text-muted">Swipe right to allocate to the Supplier, left to fulfil from Return stock — or tap the buttons.</p>
 
           <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
             {virtualizer.getVirtualItems().map((v) => {
@@ -113,7 +113,7 @@ export default function Pending() {
                         daysWaiting={daysBetween(row.item.batch_date, today)}
                         readOnly={!online}
                         onOpen={setEditing}
-                        onReceive={(it, from) => actions.receive([it], from)}
+                        onReceive={(it, from) => (from === 'supplier' ? void actions.allocate([it], !it.supplier_planned) : actions.receive([it], 'return'))}
                       />
                     </ul>
                   )}

@@ -26,7 +26,7 @@ export const WorkspaceRow = z.object({
 export const MemberRow = z.object({
   workspace_id: uuid,
   user_id: uuid,
-  role: z.enum(['owner', 'member']),
+  role: z.enum(['owner', 'member', 'tshirt_supplier', 'dtf_supplier']),
   created_at: ts,
 })
 
@@ -85,6 +85,8 @@ export const ItemRow = z.object({
   matched_rule_id: uuid.nullable(),
   unit_cost_pkr: money,
   notes: z.string().nullable(),
+  supplier_planned: z.boolean().default(false),
+  production_item_id: uuid.nullable().default(null),
   created_at: ts,
   updated_at: ts,
 })

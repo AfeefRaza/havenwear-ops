@@ -73,7 +73,8 @@ export interface DtfLine {
 export function groupForDtf(items: readonly ProdItem[]): DtfLine[] {
   const map = new Map<string, DtfLine>()
   for (const it of items) {
-    if (it.qty_required <= 0) continue
+    // No-print products never belong to the DTF supplier (also enforced by the database).
+    if (it.qty_required <= 0 || (!it.front_print && !it.back_print)) continue
     const key = it.shopify_product_id != null ? `p:${it.shopify_product_id}` : `t:${it.product_title.toLowerCase()}`
     const row = map.get(key) ?? { key, title: it.product_title, image_url: it.image_url, image2_url: it.image2_url ?? null, front: 0, back: 0, variants: [] }
     if (it.front_print) row.front += it.qty_required
@@ -95,7 +96,8 @@ export const EVENT_LABEL: Record<string, string> = {
   item_allocated: 'Product allocated to supplier',
   dtf_file_ready: 'DTF file ready',
   dtf_file_unready: 'DTF file marked not ready',
-  dtf_reset: 'DTF status reset (new products added)',
+  dtf_reset: 'DTF status reset (new printed products)',
+  print_config_changed: 'Print setting changed',
   marked_ready: 'Supplier marked ready',
   ready_undone: 'Supplier undid ready',
   received: 'Havenwear marked received',
@@ -111,4 +113,18 @@ export const ROLE_LABEL: Record<string, string> = {
   member: 'Havenwear',
   tshirt_supplier: 'T-shirt supplier',
   dtf_supplier: 'DTF supplier',
+}
+
+/** "10.2 m" — DTF film length. */
+export function formatMeters(m: number | null | undefined): string {
+  if (m == null || !Number.isFinite(m)) return '—'
+  return `${Number(m.toFixed(2))} m`
+}
+
+/** Parses what the DTF supplier types ("10.2", "10,2", "7.5 m") → meters, or null if invalid. */
+export function parseMeters(input: string): number | null {
+  const s = input.trim().toLowerCase().replace(/\s*(m|meters?|metres?)\s*$/, '').replace(',', '.')
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) return null
+  const n = Number(s)
+  return n > 0 && n <= 10000 ? n : null
 }

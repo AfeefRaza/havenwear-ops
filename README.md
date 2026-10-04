@@ -141,6 +141,13 @@ All production screens refresh automatically every 15 seconds.
 ### Product pictures & print settings
 **More → Shopify products → Sync from Shopify** loads pictures, sizes and colours from the store's public catalogue (`https://havenwearpakistan.com/products.json`). No Shopify password or API key is stored. For each product choose **Front + Back / Front only / Back only / No print** once. Unconfirmed products are assumed Front + Back and flagged.
 
+### DTF meterage & cost
+When the DTF supplier taps **File Ready** they must enter the total **DTF meters** used (decimals allowed, e.g. 10.2 / 7.5 / 12.75). Each entry stores the **cost per meter in force at that moment**, so changing the rate later never rewrites past costs (10.2 m × PKR 100 = PKR 1,020). Set the rate in **More → Settings → DTF printing cost** (owner only). Suppliers can never see the rate or any cost.
+
+The Home dashboard's **DTF printing** section shows total / today / this week / this month meters and cost, average per batch, cost per printed piece and per print side, current and past rates, a 30-day meters chart and meterage by batch.
+
+**No-print products never reach the DTF supplier.** Products set to *No print* are hidden from the DTF portal by the database, batches containing only no-print products don't appear there at all, and print problems can't be reported against them. Changing a product's print setting also updates its not-yet-received production items (adding a print puts that batch back to "DTF waiting"). Proof: `supabase/tests/dtf_proof.sql` (24 checks, rolled back).
+
 ### Create the supplier logins
 1. Supabase dashboard → **Authentication → Users → Add user** for each supplier (email + password, tick Auto Confirm).
 2. SQL editor (workspace id is shown in More → Account & devices):

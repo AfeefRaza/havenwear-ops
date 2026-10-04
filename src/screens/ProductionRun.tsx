@@ -2,7 +2,7 @@ import { CheckCircle2, FileCheck2, FileClock, History, PackageCheck, Undo2, X } 
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { PageHeader } from '../components/AppShell'
-import { DtfBadge, IssueLine, ItemHeader, ProductionBar } from '../components/ProductionBits'
+import { DtfBadge, DtfReadySheet, IssueLine, ItemHeader, ProductionBar } from '../components/ProductionBits'
 import { Sheet } from '../components/Sheet'
 import { Button, Card, EmptyState, ListSkeleton, SectionTitle, Stepper } from '../components/ui'
 import {
@@ -31,6 +31,7 @@ export default function ProductionRun() {
   const resolve = useResolveIssue()
   const online = useOnline()
   const [receiving, setReceiving] = useState<ProdItemT | null>(null)
+  const [readyFor, setReadyFor] = useState<{ id: string; batch_ref: string } | null>(null)
   const run = runs.data?.find((r) => r.id === id)
   const itemById = useMemo(() => new Map((items.data ?? []).map((i) => [i.id, i])), [items.data])
   const openIssues = (issues.data ?? []).filter((q) => q.status !== 'resolved')
@@ -43,7 +44,7 @@ export default function ProductionRun() {
       <PageHeader title={`Batch ${run.batch_ref}`} back subtitle={`${formatDate(run.batch_date)} · pushed ${timeFmt.format(new Date(run.pushed_at))}`} />
       <Card className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <DtfBadge status={run.dtf_status} />
+          <DtfBadge status={run.dtf_status} needsDtf={run.needs_dtf} meters={run.dtf_meters} />
           <Link to={`/batches/${run.batch_id}`} className="text-xs font-medium text-info underline-offset-2 hover:underline">
             Open batch →
           </Link>
@@ -55,16 +56,19 @@ export default function ProductionRun() {
           <Row label="Ready but not received" value={run.ready_not_received} warn />
           <Row label="Front / back prints" value={`${run.front_prints} / ${run.back_prints}`} />
         </dl>
-        <Button
-          variant={run.dtf_status === 'file_ready' ? 'secondary' : 'ok'}
-          icon={run.dtf_status === 'file_ready' ? FileClock : FileCheck2}
-          disabled={!online}
-          loading={setDtf.isPending}
-          onClick={() => setDtf.mutate({ run: run.id, ready: run.dtf_status !== 'file_ready' })}
-        >
-          {run.dtf_status === 'file_ready' ? 'Mark DTF file NOT ready' : 'Mark DTF file ready (on behalf of DTF)'}
-        </Button>
+        {run.needs_dtf && (
+          <Button
+            variant={run.dtf_status === 'file_ready' ? 'secondary' : 'ok'}
+            icon={run.dtf_status === 'file_ready' ? FileClock : FileCheck2}
+            disabled={!online}
+            loading={setDtf.isPending}
+            onClick={() => (run.dtf_status === 'file_ready' ? setDtf.mutate({ run: run.id, ready: false }) : setReadyFor(run))}
+          >
+            {run.dtf_status === 'file_ready' ? 'Mark DTF file NOT ready (removes its meterage)' : 'Mark DTF file ready (on behalf of DTF)'}
+          </Button>
+        )}
       </Card>
+      <DtfReadySheet run={readyFor} onClose={() => setReadyFor(null)} />
 
       {openIssues.length > 0 && (
         <>

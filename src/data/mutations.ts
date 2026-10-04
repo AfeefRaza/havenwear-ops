@@ -469,7 +469,7 @@ export function useUpdateWorkspace() {
   const qc = useQueryClient()
   const onError = useOnError()
   return useMutation({
-    mutationFn: async (values: { auto_archive_days?: number | null; last_backup_at?: string; name?: string }) => {
+    mutationFn: async (values: { auto_archive_days?: number | null; last_backup_at?: string; name?: string; dtf_cost_per_meter?: number }) => {
       assertOnline()
       const { error } = await supabase.from('workspaces').update(values).eq('id', ws)
       if (error) throw error

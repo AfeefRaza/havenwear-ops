@@ -2,6 +2,7 @@ import { AlertTriangle, Archive, ArrowDownRight, ArrowRight, ArrowUpRight, Check
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/AppShell'
+import { DtfAnalyticsSection } from '../components/DtfAnalytics'
 import { Card, ErrorNote, Pill, SectionTitle, Segmented, Skeleton } from '../components/ui'
 import { useDashboard } from '../data/queries'
 import { daysBetween, isoDateOf, PERIODS, todayISO, type Period } from '../domain/dates'
@@ -129,6 +130,8 @@ export default function Home() {
 
             <SectionTitle>Stock by category</SectionTitle>
             <StockList rows={derived.stock} />
+
+            <DtfAnalyticsSection />
 
             <SectionTitle>Charts</SectionTitle>
             <Suspense fallback={<Skeleton className="h-72" />}>

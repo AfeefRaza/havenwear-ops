@@ -1,8 +1,8 @@
 import { AlertTriangle, CheckCircle2, Clock, FileCheck2, FileClock, ImageOff, Shirt, ZoomIn } from 'lucide-react'
 import { useState } from 'react'
 import type { IssueT, ProdItemT, RunSummary } from '../data/production'
-import { useReportIssue } from '../data/production'
-import { ISSUE_LABEL, isDtfIssue, itemProgress, MAIN_ISSUES, OTHER_ISSUES, type IssueKind } from '../domain/production'
+import { useReportIssue, useSetDtfReady } from '../data/production'
+import { formatMeters, ISSUE_LABEL, isDtfIssue, itemProgress, MAIN_ISSUES, OTHER_ISSUES, parseMeters, type IssueKind } from '../domain/production'
 import { cn, useOnline } from '../lib/hooks'
 import { Sheet } from './Sheet'
 import { Button, Pill, Stepper, TextField } from './ui'
@@ -42,13 +42,63 @@ export function PrintBadges({ front, back, frontQty, backQty }: { front: boolean
   )
 }
 
-export function DtfBadge({ status }: { status: RunSummary['dtf_status'] }) {
+export function DtfBadge({ status, needsDtf = true, meters }: { status: RunSummary['dtf_status']; needsDtf?: boolean; meters?: number }) {
+  if (!needsDtf) return <Pill tone="neutral">No DTF needed</Pill>
   return status === 'file_ready' ? (
-    <Pill tone="ok" icon={FileCheck2}>DTF file ready</Pill>
+    <Pill tone="ok" icon={FileCheck2}>DTF file ready{meters ? ` · ${formatMeters(meters)}` : ''}</Pill>
   ) : (
     <Pill tone="warn" icon={FileClock}>DTF waiting</Pill>
   )
 }
+
+/** "File Ready" — the DTF supplier must enter the film meterage used (decimals allowed). */
+export function DtfReadySheet({ run, onClose }: { run: { id: string; batch_ref: string } | null; onClose: () => void }) {
+  const setReady = useSetDtfReady()
+  const online = useOnline()
+  const [text, setText] = useState('')
+  const [shown, setShown] = useState<string | null>(null)
+  if (run && run.id !== shown) {
+    setShown(run.id)
+    setText('')
+  }
+  const meters = parseMeters(text)
+  const showError = text.trim() !== '' && meters == null
+  const submit = () => {
+    if (!run || meters == null) return
+    setReady.mutate({ run: run.id, ready: true, meters }, { onSuccess: onClose })
+  }
+  return (
+    <Sheet
+      open={!!run}
+      onOpenChange={(o) => !o && onClose()}
+      title={`File ready · Batch ${run?.batch_ref ?? ''}`}
+      description="Enter the total DTF meterage used for this file."
+      footer={
+        <Button variant="ok" size="lg" block icon={FileCheck2} disabled={!online || meters == null} loading={setReady.isPending} onClick={submit}>
+          {meters != null ? `Mark File Ready · ${formatMeters(meters)}` : 'Enter meters to continue'}
+        </Button>
+      }
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          submit()
+        }}
+      >
+        <TextField
+          label="DTF meters used"
+          inputMode="decimal"
+          placeholder="e.g. 10.2"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          error={showError ? 'Enter a number of meters, e.g. 5, 7.5 or 12.75' : undefined}
+          hint="Decimals allowed (up to 2 places)."
+        />
+      </form>
+    </Sheet>
+  )
+}
+
 
 /** Required / Ready / Received bar with the "ready but not received" gap highlighted. */
 export function ProductionBar({ required, ready, received }: { required: number; ready: number; received: number }) {
@@ -186,9 +236,17 @@ export function ReportProblemSheet({ item, onClose }: { item: ProdItemT | null; 
   const [qty, setQty] = useState(1)
   const [note, setNote] = useState('')
   const [shown, setShown] = useState<string | null>(null)
+  // Print problems only apply to sides that are actually printed (the database enforces this too).
+  const applies = (k: IssueKind) => {
+    if (!item) return true
+    if (k === 'front_missing') return item.front_print
+    if (k === 'back_missing') return item.back_print
+    if (k === 'complete_missing' || k === 'wrong_print' || k === 'damaged_print') return item.front_print || item.back_print
+    return true
+  }
   if (item && item.id !== shown) {
     setShown(item.id)
-    setKind('front_missing')
+    setKind(item.front_print ? 'front_missing' : item.back_print ? 'back_missing' : 'garment_missing')
     setQty(1)
     setNote('')
   }
@@ -222,14 +280,16 @@ export function ReportProblemSheet({ item, onClose }: { item: ProdItemT | null; 
                 key={k}
                 type="button"
                 aria-pressed={kind === k}
+                disabled={!applies(k)}
                 onClick={() => setKind(k)}
                 className={cn(
-                  'min-h-12 rounded-xl border px-3 text-left text-sm font-medium',
+                  'min-h-12 rounded-xl border px-3 text-left text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40',
                   kind === k ? 'border-bad bg-bad-bg text-bad' : 'border-border bg-surface',
                   !MAIN_ISSUES.includes(k) && 'text-muted',
                 )}
               >
                 {ISSUE_LABEL[k]}
+                {!applies(k) && <span className="block text-[11px] font-normal">No print on this product</span>}
               </button>
             ))}
           </div>

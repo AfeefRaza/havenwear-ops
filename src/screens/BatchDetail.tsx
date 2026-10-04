@@ -340,7 +340,7 @@ function ProductionCard({
       <div className="flex items-center gap-2">
         <Factory className="size-5 text-muted" aria-hidden />
         <h2 className="flex-1 text-sm font-semibold">Supplier production</h2>
-        {run && <DtfBadge status={run.dtf_status} />}
+        {run && <DtfBadge status={run.dtf_status} needsDtf={run.needs_dtf} meters={run.dtf_meters} />}
       </div>
       {run ? (
         <Link to={`/production/${run.id}`} className="flex flex-col gap-2">

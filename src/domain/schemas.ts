@@ -19,6 +19,7 @@ export const WorkspaceRow = z.object({
   name: z.string(),
   auto_archive_days: z.number().int().nullable(),
   last_backup_at: ts.nullable(),
+  dtf_cost_per_meter: z.coerce.number().default(100),
   created_at: ts,
   updated_at: ts,
 })

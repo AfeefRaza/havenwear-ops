@@ -21,6 +21,7 @@ export const RunSummaryRow = z.object({
   products: int, required: int, ready: int, received: int, front_prints: int, back_prints: int, ready_not_received: int,
   front_missing: int, back_missing: int, complete_missing: int, garment_missing: int, other_issues: int,
   reprints_pending: int, reprints_ready: int, open_issues: int, completed: z.boolean(),
+  dtf_meters: z.coerce.number().default(0), needs_dtf: z.boolean().default(true),
 })
 export type RunSummary = z.infer<typeof RunSummaryRow>
 
@@ -127,7 +128,7 @@ function useProdAction<V>(fn: (v: V) => Promise<unknown>, success?: (v: V) => st
     },
     onError: (e) => toast({ tone: 'error', message: errorMessage(e) }),
     onSettled: () => {
-      for (const k of ['prod-runs', 'prod-items', 'prod-issues', 'prod-events']) void qc.invalidateQueries({ queryKey: [k] })
+      for (const k of ['prod-runs', 'prod-items', 'prod-issues', 'prod-events', 'dtf-analytics']) void qc.invalidateQueries({ queryKey: [k] })
     },
   })
 }
@@ -143,8 +144,11 @@ export const useMarkReady = () =>
     (v) => (v.delta > 0 ? `Marked ${v.delta} ready` : 'Ready count corrected'))
 
 export const useSetDtfReady = () =>
-  useProdAction((v: { run: string; ready: boolean }) => rpc('production_set_dtf_ready', { p_run: v.run, p_ready: v.ready }),
-    (v) => (v.ready ? 'DTF file marked ready' : 'DTF file marked not ready'))
+  useProdAction(
+    (v: { run: string; ready: boolean; meters?: number }) =>
+      rpc('production_set_dtf_ready', { p_run: v.run, p_ready: v.ready, p_meters: v.ready ? (v.meters ?? null) : null }),
+    (v) => (v.ready ? `DTF file ready · ${v.meters} m` : 'DTF file marked not ready'),
+  )
 
 export const useReportIssue = () =>
   useProdAction((v: { item: string; kind: string; qty: number; note: string | null }) =>
@@ -253,6 +257,7 @@ export function useSyncCatalog() {
   })
 }
 
+/** Front/back setting per product; also updates not-yet-received production items (server side). */
 export function useSetPrintConfig() {
   const ws = useAnyWorkspaceId()
   const qc = useQueryClient()
@@ -260,9 +265,7 @@ export function useSetPrintConfig() {
   return useMutation({
     mutationFn: async (v: { product_id: number; front_print: boolean; back_print: boolean }) => {
       assertOnline()
-      const { error } = await supabase.from('shopify_products')
-        .update({ front_print: v.front_print, back_print: v.back_print, print_confirmed: true })
-        .eq('workspace_id', ws).eq('product_id', v.product_id)
+      const { error } = await supabase.rpc('set_print_config', { p_workspace: ws, p_product: v.product_id, p_front: v.front_print, p_back: v.back_print })
       if (error) throw error
     },
     onMutate: async (v) => {
@@ -276,6 +279,42 @@ export function useSetPrintConfig() {
       if (ctx) qc.setQueryData(pk.catalog(ws), ctx.prev)
       toast({ tone: 'error', message: errorMessage(e) })
     },
-    onSettled: () => void qc.invalidateQueries({ queryKey: pk.catalog(ws) }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: pk.catalog(ws) })
+      for (const k of ['prod-runs', 'prod-items']) void qc.invalidateQueries({ queryKey: [k] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// DTF analytics (Havenwear only — costs are invisible to suppliers in the database)
+// ---------------------------------------------------------------------------
+const num = z.coerce.number()
+const mc = z.object({ meters: num, cost: num })
+export const DtfAnalyticsData = z.object({
+  rate: num.nullable(),
+  total: mc.extend({ files: num, batches: num }),
+  today: mc,
+  week: mc,
+  month: mc,
+  printed: z.object({ pieces: num, prints: num }),
+  by_batch: z.array(z.object({ run_id: z.string(), batch_ref: z.string(), batch_date: z.string(), meters: num, cost: num, rate: num.nullable(), files: num, last: z.string() })),
+  daily: z.array(z.object({ date: z.string(), meters: num, cost: num })),
+  rates: z.array(num),
+})
+export type DtfAnalytics = z.infer<typeof DtfAnalyticsData>
+
+export function useDtfAnalytics(today: string) {
+  const ws = useAnyWorkspaceId()
+  return useQuery({
+    queryKey: ['dtf-analytics', ws, today],
+    refetchInterval: LIVE_MS * 4,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('dtf_analytics', { p_workspace: ws, p_today: today })
+      if (error) throw error
+      const parsed = DtfAnalyticsData.safeParse(data)
+      if (!parsed.success) throw new Error('Unexpected DTF analytics data from server')
+      return parsed.data
+    },
   })
 }

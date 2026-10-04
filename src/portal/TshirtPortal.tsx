@@ -54,7 +54,7 @@ export function TshirtHome() {
                         <ChevronRight className="size-5 text-muted" aria-hidden />
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <DtfBadge status={r.dtf_status} />
+                        <DtfBadge status={r.dtf_status} needsDtf={r.needs_dtf} />
                         {r.reprints_ready > 0 && <Pill tone="ok" icon={CheckCircle2}>{r.reprints_ready} reprints ready</Pill>}
                         {r.open_issues > 0 && <Pill tone="bad" icon={AlertTriangle}>{r.open_issues} open problems</Pill>}
                       </div>
@@ -104,8 +104,8 @@ export function TshirtRun() {
       <PortalHeader title={`Batch ${run.batch_ref}`} back subtitle={`${formatDate(run.batch_date)} · ${run.required} pieces`} />
       <Card className="mb-3 flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <DtfBadge status={run.dtf_status} />
-          {run.dtf_status === 'waiting' && <span className="text-xs text-muted">The DTF supplier has not marked the print file ready yet.</span>}
+          <DtfBadge status={run.dtf_status} needsDtf={run.needs_dtf} />
+          {run.needs_dtf && run.dtf_status === 'waiting' && <span className="text-xs text-muted">The DTF supplier has not marked the print file ready yet.</span>}
         </div>
         <ProductionBar required={run.required} ready={run.ready} received={run.received} />
       </Card>
@@ -146,7 +146,7 @@ function TshirtItem({ it, issues, dtfReady, onReport }: { it: ProdItemT; issues:
     <Card className="flex flex-col gap-3 p-3">
       <ItemHeader it={it}>
         <div className="mt-1">
-          <DtfBadge status={dtfReady ? 'file_ready' : 'waiting'} />
+          <DtfBadge status={dtfReady ? 'file_ready' : 'waiting'} needsDtf={it.front_print || it.back_print} />
         </div>
       </ItemHeader>
       <div className="tabular grid grid-cols-3 gap-2 text-center">

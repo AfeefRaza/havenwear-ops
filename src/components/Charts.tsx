@@ -179,6 +179,34 @@ export function WeeklyCostChart({ weekly }: { weekly: Dashboard['weekly_cost'] }
   )
 }
 
+/** DTF meters per day, last 30 days (single series — the title names it; tooltip shows meters + cost). */
+export function DtfMetersChart({ daily }: { daily: { date: string; meters: number; cost: number }[] }) {
+  const c = useChartColors()
+  const tt = useTooltipStyle()
+  const data = daily.map((d) => ({ ...d, label: shortDate(d.date) }))
+  const total = daily.reduce((s, d) => s + d.meters, 0)
+  return (
+    <ChartCard
+      title="DTF meters used · last 30 days"
+      summary={`${Number(total.toFixed(2))} meters of DTF film used in the last 30 days.`}
+      table={<DataTable head={['Date', 'Meters', 'Cost']} rows={daily.filter((d) => d.meters > 0).map((d) => [formatDate(d.date), Number(d.meters.toFixed(2)), formatPKR(d.cost)])} />}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
+          <CartesianGrid vertical={false} stroke={c.grid} />
+          <XAxis dataKey="label" tick={{ fill: c.text, fontSize: 10 }} tickLine={false} axisLine={{ stroke: c.grid }} interval="preserveStartEnd" minTickGap={20} />
+          <YAxis tick={{ fill: c.text, fontSize: 10 }} tickLine={false} axisLine={false} width={44} />
+          <Tooltip
+            {...tt}
+            formatter={(v, _n, p) => [`${Number(Number(v).toFixed(2))} m · ${formatPKR((p.payload as { cost: number }).cost)}`, 'DTF']}
+          />
+          <Bar dataKey="meters" name="Meters" fill={c.supplier} radius={[4, 4, 0, 0]} maxBarSize={16} />
+        </BarChart>
+      </ResponsiveContainer>
+    </ChartCard>
+  )
+}
+
 export function StockChart({ stock }: { stock: CategoryStock[] }) {
   const c = useChartColors()
   const tt = useTooltipStyle()

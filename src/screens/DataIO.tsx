@@ -14,12 +14,14 @@ import { useOnline } from '../lib/hooks'
 import { assertOnline, errorMessage, supabase } from '../lib/supabase'
 import { useWorkspace } from '../lib/workspace'
 
-const TABLES = ['categories', 'keyword_rules', 'batches', 'batch_items', 'return_receipts', 'return_receipt_lines', 'supplier_deliveries', 'supplier_delivery_lines', 'stock_adjustments'] as const
+const TABLES = ['categories', 'keyword_rules', 'batches', 'batch_items', 'return_receipts', 'return_receipt_lines', 'supplier_deliveries', 'supplier_delivery_lines', 'stock_adjustments', 'dtf_meterage', 'dtf_costs'] as const
 
 async function fetchAll(table: string, ws: string): Promise<Record<string, unknown>[]> {
   const out: Record<string, unknown>[] = []
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from(table).select('*').eq('workspace_id', ws).order('created_at').order('id').range(from, from + 999)
+    // dtf_costs is keyed by meterage_id (no id column).
+    const tiebreak = table === 'dtf_costs' ? 'meterage_id' : 'id'
+    const { data, error } = await supabase.from(table).select('*').eq('workspace_id', ws).order('created_at').order(tiebreak).range(from, from + 999)
     if (error) throw error
     out.push(...((data ?? []) as Record<string, unknown>[]))
     if (!data || data.length < 1000) return out

@@ -1,6 +1,6 @@
 import { CheckCircle2, ChevronDown, FileCheck2, Printer, RotateCcw } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { DtfBadge, ProductImage } from '../components/ProductionBits'
+import { DtfBadge, ProductGallery, ProductImage } from '../components/ProductionBits'
 import { Button, Card, EmptyState, ErrorNote, ListSkeleton, Pill, SectionTitle, Segmented } from '../components/ui'
 import { useIssues, useProdItems, useReprintReady, useRunSummaries, useSetDtfReady, type RunSummary } from '../data/production'
 import { formatDate } from '../domain/format'
@@ -85,11 +85,11 @@ function JobCard({ r, defaultOpen }: { r: RunSummary; defaultOpen?: boolean }) {
       {open && (
         <ul className="flex flex-col divide-y divide-border">
           {lines.map((l) => (
-            <li key={l.key} className="flex gap-3 py-2">
-              <ProductImage src={l.image_url} alt={l.title} />
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold leading-snug">{l.title}</div>
-                <div className="tabular mt-1 flex gap-3 text-base">
+            <li key={l.key} className="flex flex-col gap-2 py-3">
+              <ProductGallery images={[l.image_url, l.image2_url]} alt={l.title} />
+              <div className="min-w-0">
+                <div className="text-base font-semibold leading-snug">{l.title}</div>
+                <div className="tabular mt-1 flex gap-4 text-lg">
                   <span>Front: <strong>{l.front}</strong></span>
                   <span>Back: <strong>{l.back}</strong></span>
                 </div>
@@ -133,9 +133,9 @@ function Reprints() {
         const run = runById.get(q.run_id)
         return (
           <Card key={q.id} className="flex flex-col gap-3 border-bad/40 p-3">
-            <div className="flex gap-3">
-              <ProductImage src={it?.image_url ?? null} alt={it?.product_title ?? 'Product'} />
-              <div className="min-w-0 flex-1">
+            <div className="flex flex-col gap-3">
+              <ProductGallery images={[it?.image_url, it?.image2_url]} alt={it?.product_title ?? 'Product'} />
+              <div className="min-w-0">
                 <div className="text-xs text-muted">Batch {run?.batch_ref ?? '—'} · {run ? formatDate(run.batch_date) : ''}</div>
                 <div className="text-sm font-semibold leading-snug">{it?.product_title ?? 'Product'}</div>
                 {it && <div className="text-sm text-muted">{[it.color, it.size].filter(Boolean).join(' · ')}</div>}

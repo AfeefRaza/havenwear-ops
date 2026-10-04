@@ -54,7 +54,7 @@ describe('isDtfIssue', () => {
 const feed: FeedProduct[] = [
   {
     id: 10, title: 'Basic Oversized T-shirt', handle: 'basic', options: [{ name: 'Size', position: 1 }, { name: 'Color', position: 2 }],
-    images: [{ src: '//cdn.shopify.com/basic.jpg' }],
+    images: [{ src: '//cdn.shopify.com/basic.jpg' }, { src: 'https://cdn.shopify.com/basic-back.jpg' }],
     variants: [{ id: 101, title: 'S / Navy', option1: 'S', option2: 'Navy', option3: null }],
   },
   {
@@ -77,6 +77,11 @@ describe('shopify catalogue', () => {
     expect(variants.find((v) => v.variant_id === 101)).toMatchObject({ size: 'S', color: 'Navy', image_url: 'https://cdn.shopify.com/basic.jpg' })
     expect(variants.find((v) => v.variant_id === 111)).toMatchObject({ size: 'M', color: 'Maroon + Steel grey' })
     expect(variants.find((v) => v.variant_id === 121)).toMatchObject({ size: 'Medium(Oversized)', color: 'Charcoal', image_url: null })
+  })
+
+  it('keeps the second product picture (often the other print side)', () => {
+    expect(products.find((p) => p.product_id === 10)).toMatchObject({ image_url: 'https://cdn.shopify.com/basic.jpg', image2_url: 'https://cdn.shopify.com/basic-back.jpg' })
+    expect(products.find((p) => p.product_id === 11)!.image2_url).toBeNull()
   })
 
   it('longest product title wins (pack vs single)', () => {

@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, Clock, FileCheck2, FileClock, ImageOff, Shirt } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Clock, FileCheck2, FileClock, ImageOff, Shirt, ZoomIn } from 'lucide-react'
 import { useState } from 'react'
 import type { IssueT, ProdItemT, RunSummary } from '../data/production'
 import { useReportIssue } from '../data/production'
@@ -72,15 +72,85 @@ export function ProductionBar({ required, ready, received }: { required: number;
   )
 }
 
+function sized(src: string, w: number) {
+  return src.includes('?') ? `${src}&width=${w}` : `${src}?width=${w}`
+}
+
+/**
+ * The first two Shopify product pictures, large and side by side (the second often shows the
+ * other print side). Tap a picture to see it full-size.
+ */
+export function ProductGallery({ images, alt }: { images: (string | null | undefined)[]; alt: string }) {
+  const pics = [...new Set(images.filter((x): x is string => !!x))].slice(0, 2)
+  const [zoom, setZoom] = useState<string | null>(null)
+  const [broken, setBroken] = useState<Set<string>>(new Set())
+  const ok = pics.filter((p) => !broken.has(p))
+
+  if (!ok.length) {
+    return (
+      <div className="grid aspect-[2/1] w-full place-items-center rounded-xl bg-surface-2 text-muted" role="img" aria-label={`${alt} (no picture)`}>
+        <span className="flex items-center gap-2 text-sm">
+          <ImageOff className="size-5" aria-hidden /> No picture
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-2">
+        {ok.map((src, i) => (
+          <button
+            key={src}
+            type="button"
+            onClick={() => setZoom(src)}
+            className={cn('group relative overflow-hidden rounded-xl bg-surface-2', ok.length === 1 ? 'col-span-2 aspect-[4/3]' : 'aspect-square')}
+            aria-label={`Enlarge picture ${i + 1} of ${alt}`}
+          >
+            <img
+              src={sized(src, 600)}
+              alt={`${alt} (view ${i + 1})`}
+              loading="lazy"
+              decoding="async"
+              referrerPolicy="no-referrer"
+              onError={() => setBroken((b) => new Set(b).add(src))}
+              className={cn('size-full', ok.length === 1 ? 'object-contain' : 'object-cover')}
+            />
+            <span className="absolute bottom-1.5 right-1.5 grid size-8 place-items-center rounded-full bg-black/55 text-white" aria-hidden>
+              <ZoomIn className="size-4" />
+            </span>
+          </button>
+        ))}
+      </div>
+      <Sheet open={!!zoom} onOpenChange={(o) => !o && setZoom(null)} title={alt}>
+        {zoom && (
+          <div className="flex flex-col gap-3">
+            {ok.map((src, i) => (
+              <img
+                key={src}
+                src={sized(src, 1200)}
+                alt={`${alt} (view ${i + 1})`}
+                referrerPolicy="no-referrer"
+                className={cn('w-full rounded-xl bg-surface-2 object-contain', src !== zoom && 'opacity-90')}
+              />
+            ))}
+          </div>
+        )}
+      </Sheet>
+    </>
+  )
+}
+
+/** Product card header: large two-picture gallery on top, details below. */
 export function ItemHeader({ it, children }: { it: ProdItemT; children?: React.ReactNode }) {
   const label = [it.color, it.size ?? it.variant_title].filter(Boolean).join(' · ')
   return (
-    <div className="flex gap-3">
-      <ProductImage src={it.image_url} alt={it.product_title} />
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-semibold leading-snug">{it.product_title}</div>
+    <div className="flex flex-col gap-3">
+      <ProductGallery images={[it.image_url, it.image2_url]} alt={it.product_title} />
+      <div className="min-w-0">
+        <div className="text-base font-semibold leading-snug">{it.product_title}</div>
         {label && <div className="text-sm text-muted">{label}</div>}
-        <div className="mt-1 flex flex-wrap items-center gap-1">
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
           <PrintBadges front={it.front_print} back={it.back_print} />
           <Pill tone="neutral" icon={Shirt}>Qty {it.qty_required}</Pill>
         </div>

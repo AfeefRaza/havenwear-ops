@@ -84,6 +84,8 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Safe-area helpers. NOTE: these REPLACE padding (they are unlayered and beat Tailwind utilities) —
+   to add safe-area on top of normal padding use e.g. pb-[calc(1rem+env(safe-area-inset-bottom))]. */
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
 }

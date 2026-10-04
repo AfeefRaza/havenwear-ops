@@ -27,6 +27,7 @@ export type RunSummary = z.infer<typeof RunSummaryRow>
 export const ProdItemRow = z.object({
   id: uuid, workspace_id: uuid, run_id: uuid, item_key: z.string(), product_title: z.string(),
   variant_title: z.string().nullable(), size: z.string().nullable(), color: z.string().nullable(), image_url: z.string().nullable(),
+  image2_url: z.string().nullable().default(null),
   shopify_product_id: big, shopify_variant_id: big, front_print: z.boolean(), back_print: z.boolean(),
   qty_required: int, qty_ready: int, qty_received: int, created_at: ts, updated_at: ts,
 })
@@ -172,6 +173,7 @@ export const SHOPIFY_STORE = (import.meta.env.VITE_SHOPIFY_STORE as string | und
 
 const CatalogProductRow = z.object({
   product_id: z.coerce.number(), handle: z.string(), title: z.string(), product_type: z.string().nullable(), image_url: z.string().nullable(),
+  image2_url: z.string().nullable().default(null),
   front_print: z.boolean(), back_print: z.boolean(), print_confirmed: z.boolean(), synced_at: ts,
 })
 const CatalogVariantRow = z.object({
@@ -226,7 +228,8 @@ export function useSyncCatalog() {
       // Upsert only feed-owned columns so front/back print settings survive re-syncs.
       for (let i = 0; i < products.length; i += 500) {
         const rows = products.slice(i, i + 500).map((p) => ({
-          workspace_id: ws, product_id: p.product_id, handle: p.handle, title: p.title, product_type: p.product_type, image_url: p.image_url, synced_at: now,
+          workspace_id: ws, product_id: p.product_id, handle: p.handle, title: p.title, product_type: p.product_type, image_url: p.image_url,
+          image2_url: p.image2_url, synced_at: now,
         }))
         const { error } = await supabase.from('shopify_products').upsert(rows, { onConflict: 'workspace_id,product_id' })
         if (error) throw error
@@ -236,11 +239,15 @@ export function useSyncCatalog() {
         const { error } = await supabase.from('shopify_variants').upsert(rows, { onConflict: 'workspace_id,variant_id' })
         if (error) throw error
       }
+      // Fill in pictures for products that were already pushed to production.
+      const { error: e3 } = await supabase.rpc('production_refresh_images', { p_workspace: ws })
+      if (e3) throw e3
       return { products: products.length, variants: variants.length }
     },
     onSuccess: (r) => {
       toast({ tone: 'success', message: `Synced ${r.products} products (${r.variants} variants) from Shopify` })
       void qc.invalidateQueries({ queryKey: pk.catalog(ws) })
+      void qc.invalidateQueries({ queryKey: ['prod-items'] })
     },
     onError: (e) => toast({ tone: 'error', message: `Shopify sync failed: ${errorMessage(e)}` }),
   })

@@ -36,6 +36,7 @@ export interface ProdItem {
   size: string | null
   color: string | null
   image_url: string | null
+  image2_url?: string | null
   shopify_product_id: number | null
   front_print: boolean
   back_print: boolean
@@ -59,6 +60,7 @@ export interface DtfLine {
   key: string
   title: string
   image_url: string | null
+  image2_url: string | null
   front: number
   back: number
   variants: { label: string; qty: number }[]
@@ -73,11 +75,12 @@ export function groupForDtf(items: readonly ProdItem[]): DtfLine[] {
   for (const it of items) {
     if (it.qty_required <= 0) continue
     const key = it.shopify_product_id != null ? `p:${it.shopify_product_id}` : `t:${it.product_title.toLowerCase()}`
-    const row = map.get(key) ?? { key, title: it.product_title, image_url: it.image_url, front: 0, back: 0, variants: [] }
+    const row = map.get(key) ?? { key, title: it.product_title, image_url: it.image_url, image2_url: it.image2_url ?? null, front: 0, back: 0, variants: [] }
     if (it.front_print) row.front += it.qty_required
     if (it.back_print) row.back += it.qty_required
     row.variants.push({ label: [it.color, it.size ?? it.variant_title].filter(Boolean).join(' · ') || '—', qty: it.qty_required })
     if (!row.image_url && it.image_url) row.image_url = it.image_url
+    if (!row.image2_url && it.image2_url) row.image2_url = it.image2_url
     map.set(key, row)
   }
   return [...map.values()].sort((a, b) => b.front + b.back - (a.front + a.back) || a.title.localeCompare(b.title))

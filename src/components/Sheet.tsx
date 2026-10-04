@@ -34,7 +34,7 @@ export function Sheet({
             )}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">{children}</div>
-          {footer && <div className="pb-safe border-t border-border bg-surface px-4 pt-3 pb-3">{footer}</div>}
+          {footer && <div className="shrink-0 border-t border-border bg-surface px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">{footer}</div>}
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>

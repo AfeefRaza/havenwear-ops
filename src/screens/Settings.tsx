@@ -5,7 +5,7 @@ import { PageHeader } from '../components/AppShell'
 import { useToast } from '../components/Toast'
 import { Button, Card, SectionTitle, TextField, Toggle } from '../components/ui'
 import { useUpdateWorkspace } from '../data/mutations'
-import { formatDate } from '../domain/format'
+import { formatDate, formatPKR } from '../domain/format'
 import { useOnline } from '../lib/hooks'
 import { clearPin, hasPin, isValidPin, setPin } from '../lib/pin'
 import { useWorkspace } from '../lib/workspace'
@@ -17,6 +17,9 @@ export default function Settings() {
   const online = useOnline()
   const isOwner = role === 'owner'
   const [days, setDays] = useState(String(workspace.auto_archive_days ?? 14))
+  const [rate, setRate] = useState(String(workspace.dtf_cost_per_meter))
+  const rateNum = Number(rate.replace(',', '.'))
+  const rateValid = rate.trim() !== '' && Number.isFinite(rateNum) && rateNum >= 0 && rateNum <= 100000
   const autoOn = workspace.auto_archive_days != null
 
   const [pinOn, setPinOn] = useState(hasPin())
@@ -67,6 +70,37 @@ export default function Settings() {
             </Button>
           </div>
         )}
+      </Card>
+
+      <SectionTitle>DTF printing cost</SectionTitle>
+      <Card className="flex flex-col gap-3">
+        <div className="flex items-end gap-2">
+          <TextField
+            label="DTF cost per meter (PKR)"
+            inputMode="decimal"
+            className="flex-1"
+            value={rate}
+            onChange={(e) => setRate(e.target.value)}
+            disabled={!isOwner}
+            error={rate.trim() !== '' && !rateValid ? 'Enter an amount like 100 or 112.50' : undefined}
+          />
+          <Button
+            disabled={!online || !isOwner || !rateValid || rateNum === workspace.dtf_cost_per_meter}
+            loading={update.isPending}
+            onClick={() =>
+              update.mutate(
+                { dtf_cost_per_meter: Math.round(rateNum * 100) / 100 },
+                { onSuccess: () => toast({ tone: 'success', message: `DTF rate set to ${formatPKR(rateNum)} per meter` }) },
+              )
+            }
+          >
+            Save
+          </Button>
+        </div>
+        <p className="text-xs text-muted">
+          Used for DTF files marked ready from now on. Files already marked ready keep the rate that applied at that time, so past costs never change.
+          {!isOwner && ' Only the workspace owner can change this.'} Suppliers never see this rate.
+        </p>
       </Card>
 
       <SectionTitle>Backup</SectionTitle>

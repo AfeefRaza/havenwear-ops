@@ -1,10 +1,11 @@
 import { CheckCircle2, ChevronDown, FileCheck2, Printer, RotateCcw } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { DtfBadge, ProductGallery, ProductImage } from '../components/ProductionBits'
+import { useConfirm } from '../components/Confirm'
+import { DtfBadge, DtfReadySheet, ProductGallery, ProductImage } from '../components/ProductionBits'
 import { Button, Card, EmptyState, ErrorNote, ListSkeleton, Pill, SectionTitle, Segmented } from '../components/ui'
 import { useIssues, useProdItems, useReprintReady, useRunSummaries, useSetDtfReady, type RunSummary } from '../data/production'
 import { formatDate } from '../domain/format'
-import { dtfTotals, groupForDtf, ISSUE_LABEL } from '../domain/production'
+import { dtfTotals, formatMeters, groupForDtf, ISSUE_LABEL } from '../domain/production'
 import { cn, useOnline } from '../lib/hooks'
 import { PortalHeader } from './SupplierPortal'
 
@@ -62,7 +63,9 @@ function JobCard({ r, defaultOpen }: { r: RunSummary; defaultOpen?: boolean }) {
   const items = useProdItems(r.id)
   const setReady = useSetDtfReady()
   const online = useOnline()
+  const [confirmEl, confirm] = useConfirm()
   const [open, setOpen] = useState(!!defaultOpen)
+  const [readyFor, setReadyFor] = useState<RunSummary | null>(null)
   const lines = useMemo(() => groupForDtf(items.data ?? []), [items.data])
   const totals = dtfTotals(lines)
   const isReady = r.dtf_status === 'file_ready'
@@ -78,7 +81,7 @@ function JobCard({ r, defaultOpen }: { r: RunSummary; defaultOpen?: boolean }) {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <DtfBadge status={r.dtf_status} />
+          <DtfBadge status={r.dtf_status} meters={r.dtf_meters} />
           <ChevronDown className={cn('size-5 text-muted transition', open && 'rotate-180')} aria-hidden />
         </div>
       </button>
@@ -106,10 +109,16 @@ function JobCard({ r, defaultOpen }: { r: RunSummary; defaultOpen?: boolean }) {
         icon={isReady ? RotateCcw : FileCheck2}
         disabled={!online}
         loading={setReady.isPending}
-        onClick={() => setReady.mutate({ run: r.id, ready: !isReady })}
+        onClick={async () => {
+          if (!isReady) return setReadyFor(r)
+          if (await confirm({ title: 'Undo File Ready?', description: `The ${formatMeters(r.dtf_meters)} entered for this file will be removed.`, confirmLabel: 'Undo', danger: true }))
+            setReady.mutate({ run: r.id, ready: false })
+        }}
       >
         {isReady ? 'Undo File Ready' : 'File Ready'}
       </Button>
+      <DtfReadySheet run={readyFor} onClose={() => setReadyFor(null)} />
+      {confirmEl}
     </Card>
   )
 }

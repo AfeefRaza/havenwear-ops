@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dtfTotals, groupForDtf, isDtfIssue, itemProgress, type ProdItem } from './production'
+import { dtfTotals, formatMeters, groupForDtf, isDtfIssue, itemProgress, parseMeters, type ProdItem } from './production'
 import { buildMatcher, cleanImage, colorFromTitle, flattenFeed, productionKey, splitLineName, type FeedProduct } from './shopifyCatalog'
 
 const item = (o: Partial<ProdItem>): ProdItem => ({
@@ -37,6 +37,31 @@ describe('groupForDtf', () => {
   it('groups unmatched products by title', () => {
     const lines = groupForDtf([item({ shopify_product_id: null, product_title: 'X' }), item({ shopify_product_id: null, product_title: 'x' })])
     expect(lines).toHaveLength(1)
+  })
+})
+
+describe('DTF: no-print products', () => {
+  it('are never part of the DTF job', () => {
+    const lines = groupForDtf([item({ qty_required: 2 }), item({ shopify_product_id: 9, product_title: 'Plain Denim', front_print: false, back_print: false, qty_required: 5 })])
+    expect(lines.map((l) => l.title)).toEqual(['Motorsport Tee'])
+  })
+})
+
+describe('meters', () => {
+  it.each([
+    ['10.2', 10.2],
+    ['5', 5],
+    ['7.5 m', 7.5],
+    ['12.75 meters', 12.75],
+    ['10,2', 10.2],
+    [' 3.25M ', 3.25],
+  ])('parse %j → %d', (input, out) => expect(parseMeters(input)).toBe(out))
+  it.each(['', '0', '-1', 'abc', '1.234', '10001', '1..2'])('rejects %j', (input) => expect(parseMeters(input)).toBeNull())
+  it('formats', () => {
+    expect(formatMeters(10.2)).toBe('10.2 m')
+    expect(formatMeters(5)).toBe('5 m')
+    expect(formatMeters(12.75)).toBe('12.75 m')
+    expect(formatMeters(null)).toBe('—')
   })
 })
 

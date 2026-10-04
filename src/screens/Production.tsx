@@ -159,7 +159,7 @@ export function RunCard({ r }: { r: RunSummary }) {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <DtfBadge status={r.dtf_status} />
+            <DtfBadge status={r.dtf_status} needsDtf={r.needs_dtf} meters={r.dtf_meters} />
             <ChevronRight className="size-5 text-muted" aria-hidden />
           </div>
         </div>

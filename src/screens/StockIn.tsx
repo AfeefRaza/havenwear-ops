@@ -11,7 +11,7 @@ export default function StockIn() {
   const tab = params.get('tab') === 'supplier' ? 'supplier' : 'returns'
   return (
     <>
-      <div className="pt-safe pt-3">
+      <div className="pt-[calc(0.75rem+env(safe-area-inset-top))]">
         <Segmented
           label="Stock in"
           value={tab}

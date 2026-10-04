@@ -27,6 +27,7 @@ export interface CatalogProduct {
   title: string
   product_type: string | null
   image_url: string | null
+  image2_url: string | null
   front_print: boolean
   back_print: boolean
   print_confirmed: boolean
@@ -66,12 +67,14 @@ export function flattenFeed(feed: FeedProduct[]): { products: CatalogProduct[]; 
   const variants: CatalogVariant[] = []
   for (const p of feed) {
     const productImage = cleanImage(p.images[0]?.src)
+    const secondImage = cleanImage(p.images[1]?.src)
     products.push({
       product_id: p.id,
       handle: p.handle,
       title: p.title.trim(),
       product_type: p.product_type?.trim() || null,
       image_url: productImage,
+      image2_url: secondImage && secondImage !== productImage ? secondImage : null,
       front_print: true,
       back_print: true,
       print_confirmed: false,

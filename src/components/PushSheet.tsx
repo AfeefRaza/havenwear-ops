@@ -20,6 +20,7 @@ interface Line {
   size: string | null
   color: string | null
   image: string | null
+  image2: string | null
   productId: number | null
   variantId: number | null
   front: boolean
@@ -56,6 +57,7 @@ export function PushSheet({ open, onOpenChange, batchId, items }: { open: boolea
         size: m?.variant?.size ?? null,
         color: m?.variant?.color ?? null,
         image: m?.variant?.image_url ?? m?.product.image_url ?? null,
+        image2: secondImage(m?.variant?.image_url ?? m?.product.image_url ?? null, m?.product.image_url ?? null, m?.product.image2_url ?? null),
         productId: m?.product.product_id ?? null,
         variantId: m?.variant?.variant_id ?? null,
         front: m?.product.front_print ?? true,
@@ -90,6 +92,7 @@ export function PushSheet({ open, onOpenChange, batchId, items }: { open: boolea
           size: l.size ?? l.variant,
           color: l.color,
           image_url: l.image,
+          image2_url: l.image2,
           shopify_product_id: l.productId,
           shopify_variant_id: l.variantId,
           front_print: l.front,
@@ -161,4 +164,9 @@ export function PushSheet({ open, onOpenChange, batchId, items }: { open: boolea
       </div>
     </Sheet>
   )
+}
+
+/** Second picture = the first product picture that differs from the main (variant) picture. */
+function secondImage(main: string | null, productImage: string | null, productImage2: string | null): string | null {
+  return [productImage, productImage2].find((x) => x && x !== main) ?? null
 }

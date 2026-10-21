@@ -25,7 +25,7 @@ export interface GroupableItem {
 
 export interface VariantRow<T extends GroupableItem> {
   item: T
-  /** Short, distinguishing label, e.g. "M", "XL", "S / Navy". */
+  /** Distinguishing label, e.g. "Medium", "XL", "Small / Navy". */
   label: string
 }
 
@@ -46,17 +46,17 @@ export interface ProductGroup<T extends GroupableItem> {
 
 const SIZE_WORDS: [RegExp, string][] = [
   [/^(extra[\s-]?small|x[\s-]?small|xs)$/i, 'XS'],
-  [/^(small|s)$/i, 'S'],
-  [/^(medium|m)$/i, 'M'],
-  [/^(large|l)$/i, 'L'],
+  [/^(small|s)$/i, 'Small'],
+  [/^(medium|m)$/i, 'Medium'],
+  [/^(large|l)$/i, 'Large'],
   [/^(extra[\s-]?large|x[\s-]?large|xl)$/i, 'XL'],
   [/^(xx[\s-]?large|2[\s-]?x[\s-]?large|xxl|2xl)$/i, '2XL'],
   [/^(xxx[\s-]?large|3[\s-]?x[\s-]?large|xxxl|3xl)$/i, '3XL'],
   [/^(4xl|xxxxl)$/i, '4XL'],
 ]
-const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL']
+const SIZE_ORDER = ['XS', 'SMALL', 'MEDIUM', 'LARGE', 'XL', '2XL', '3XL', '4XL']
 
-/** "Medium" → "M", "Medium(Oversized)" → "M (Oversized)", anything else unchanged. */
+/** "M" → "Medium", "Medium(Oversized)" → "Medium (Oversized)", "X-Large" → "XL"; anything else unchanged. */
 export function shortSize(part: string): string {
   const m = /^(.*?)\s*\(([^()]+)\)\s*$/.exec(part.trim())
   const base = (m ? m[1]! : part).trim()
@@ -132,7 +132,7 @@ export function groupByProduct<T extends GroupableItem>(items: readonly T[]): Pr
   return groups.sort((a, b) => a.title.localeCompare(b.title))
 }
 
-/** "M × 1 | L × 1 | XL × 2" */
+/** "Medium × 1 | Large × 1 | XL × 2" */
 export function sizeSummary<T extends GroupableItem>(g: ProductGroup<T>): string {
   return g.rows.map((r) => `${r.label} × ${r.item.qty_required}`).join(' | ')
 }

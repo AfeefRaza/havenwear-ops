@@ -143,6 +143,15 @@ export const useMarkReady = () =>
   useProdAction((v: { item: string; delta: number }) => rpc('production_mark_ready', { p_item: v.item, p_delta: v.delta }),
     (v) => (v.delta > 0 ? `Marked ${v.delta} ready` : 'Ready count corrected'))
 
+/** Mark several SKUs ready at once (e.g. "All ready" on a grouped product card). Each SKU is still updated individually. */
+export const useMarkReadyMany = () =>
+  useProdAction(
+    async (v: { changes: { item: string; delta: number }[] }) => {
+      for (const c of v.changes) if (c.delta !== 0) await rpc('production_mark_ready', { p_item: c.item, p_delta: c.delta })
+    },
+    (v) => `Marked ${v.changes.reduce((s, c) => s + c.delta, 0)} ready`,
+  )
+
 export const useSetDtfReady = () =>
   useProdAction(
     (v: { run: string; ready: boolean; meters?: number }) =>

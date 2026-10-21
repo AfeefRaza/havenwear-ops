@@ -1,11 +1,13 @@
 import { AlertTriangle, CheckCircle2, ChevronRight, Factory, Minus, Plus, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { DtfBadge, IssueLine, ItemHeader, ProductionBar, ReportProblemSheet } from '../components/ProductionBits'
+import { DtfBadge, IssueLine, PrintBadges, ProductGallery, ProductionBar, ReportProblemSheet } from '../components/ProductionBits'
+import { Sheet } from '../components/Sheet'
 import { Button, Card, EmptyState, ErrorNote, ListSkeleton, Pill, Segmented } from '../components/ui'
-import { useIssues, useMarkReady, useProdItems, useResolveIssue, useRunSummaries, type IssueT, type ProdItemT } from '../data/production'
+import { useIssues, useMarkReady, useMarkReadyMany, useProdItems, useResolveIssue, useRunSummaries, type IssueT, type ProdItemT } from '../data/production'
 import { formatDate } from '../domain/format'
 import { itemProgress } from '../domain/production'
+import { groupByProduct, sizeSummary, type ProductGroup } from '../domain/productGroups'
 import { useOnline } from '../lib/hooks'
 import { PortalHeader } from './SupplierPortal'
 
@@ -89,11 +91,12 @@ export function TshirtRun() {
     return m
   }, [issues.data])
 
-  const list = (items.data ?? []).filter((i) => i.qty_required > 0)
+  // One card per parent Shopify product; each SKU stays its own row (display-only grouping).
+  const groups = useMemo(() => groupByProduct(items.data ?? []), [items.data])
   const openIssueItems = new Set((issues.data ?? []).filter((q) => q.status !== 'resolved').map((q) => q.item_id))
-  const todo = list.filter((i) => i.qty_ready < i.qty_required)
-  const done = list.filter((i) => i.qty_ready >= i.qty_required)
-  const problems = list.filter((i) => openIssueItems.has(i.id))
+  const todo = groups.filter((g) => g.rows.some((r) => r.item.qty_ready < r.item.qty_required))
+  const done = groups.filter((g) => g.rows.every((r) => r.item.qty_ready >= r.item.qty_required))
+  const problems = groups.filter((g) => g.rows.some((r) => openIssueItems.has(r.item.id)))
   const shown = tab === 'todo' ? todo : tab === 'done' ? done : problems
 
   if (runs.isPending || items.isPending) return <><PortalHeader title="Batch" back /><ListSkeleton /></>
@@ -120,9 +123,9 @@ export function TshirtRun() {
         ]}
       />
       <ul className="mt-3 flex flex-col gap-3">
-        {shown.map((it) => (
-          <li key={it.id}>
-            <TshirtItem it={it} issues={issuesByItem.get(it.id) ?? []} dtfReady={run.dtf_status === 'file_ready'} onReport={() => setReporting(it)} />
+        {shown.map((g) => (
+          <li key={g.key}>
+            <ProductCard g={g} issuesByItem={issuesByItem} dtfReady={run.dtf_status === 'file_ready'} onReport={setReporting} />
           </li>
         ))}
         {!shown.length && (
@@ -136,42 +139,103 @@ export function TshirtRun() {
   )
 }
 
-function TshirtItem({ it, issues, dtfReady, onReport }: { it: ProdItemT; issues: IssueT[]; dtfReady: boolean; onReport: () => void }) {
+export function ProductCard({
+  g,
+  issuesByItem,
+  dtfReady,
+  onReport,
+}: {
+  g: ProductGroup<ProdItemT>
+  issuesByItem: Map<string, IssueT[]>
+  dtfReady: boolean
+  onReport: (it: ProdItemT) => void
+}) {
   const markReady = useMarkReady()
+  const markMany = useMarkReadyMany()
   const resolve = useResolveIssue()
   const online = useOnline()
-  const p = itemProgress(it)
-  const open = issues.filter((q) => q.status !== 'resolved')
+  const busy = markReady.isPending || markMany.isPending
+  const pending = Math.max(g.required - g.ready, 0)
+  const needsPrint = g.front_print || g.back_print
+  const open = g.rows.flatMap((r) => (issuesByItem.get(r.item.id) ?? []).filter((q) => q.status !== 'resolved').map((q) => ({ q, label: r.label })))
+  const [picking, setPicking] = useState(false)
+
   return (
     <Card className="flex flex-col gap-3 p-3">
-      <ItemHeader it={it}>
-        <div className="mt-1">
-          <DtfBadge status={dtfReady ? 'file_ready' : 'waiting'} needsDtf={it.front_print || it.back_print} />
+      <ProductGallery images={[g.image_url, g.image2_url]} alt={g.title} />
+      <div>
+        <div className="text-base font-semibold leading-snug">{g.title}</div>
+        {g.common && <div className="text-sm text-muted">{g.common}</div>}
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          <PrintBadges front={g.front_print} back={g.back_print} />
+          <DtfBadge status={dtfReady ? 'file_ready' : 'waiting'} needsDtf={needsPrint} />
         </div>
-      </ItemHeader>
-      <div className="tabular grid grid-cols-3 gap-2 text-center">
-        <Box label="Required" value={p.required} />
-        <Box label="Ready" value={p.ready} good={p.ready >= p.required} />
-        <Box label="Pending" value={p.pendingProduction} warn={p.pendingProduction > 0} />
       </div>
-      {p.pendingProduction > 0 ? (
-        <div className="flex gap-2">
-          <Button className="flex-1" variant="ok" size="lg" icon={Plus} disabled={!online || markReady.isPending} onClick={() => markReady.mutate({ item: it.id, delta: 1 })}>
-            1 ready
-          </Button>
-          {p.pendingProduction > 1 && (
-            <Button className="flex-1" variant="primary" size="lg" icon={CheckCircle2} disabled={!online || markReady.isPending} onClick={() => markReady.mutate({ item: it.id, delta: p.pendingProduction })}>
-              All {p.pendingProduction} ready
-            </Button>
-          )}
-        </div>
-      ) : (
-        <Pill tone="ok" icon={CheckCircle2} className="self-start">All {p.required} marked ready</Pill>
+
+      <div className="rounded-xl bg-surface-2 p-3">
+        <div className="tabular text-lg font-semibold">Total required: {g.required} pcs</div>
+        <div className="tabular mt-0.5 text-sm">Sizes: {sizeSummary(g)}</div>
+      </div>
+
+      <div className="tabular grid grid-cols-3 gap-2 text-center">
+        <Box label="Required" value={g.required} />
+        <Box label="Ready" value={g.ready} good={g.ready >= g.required} />
+        <Box label="Pending" value={pending} warn={pending > 0} />
+      </div>
+
+      {/* One row per SKU — every action still applies to that exact variant. */}
+      <ul className="flex flex-col divide-y divide-border rounded-xl border border-border" aria-label={`Sizes of ${g.title}`}>
+        {g.rows.map(({ item, label }) => {
+          const p = itemProgress(item)
+          return (
+            <li key={item.id} className="flex items-center gap-2 px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-base font-semibold">{label}</div>
+                <div className="tabular text-xs text-muted">
+                  {p.ready}/{p.required} ready{p.pendingProduction > 0 ? ` · ${p.pendingProduction} to make` : ''}
+                </div>
+              </div>
+              {p.pendingProduction > 0 ? (
+                <>
+                  <Button size="icon" variant="ok" icon={Plus} aria-label={`1 ${label} ready`} disabled={!online || busy} onClick={() => markReady.mutate({ item: item.id, delta: 1 })} />
+                  {p.pendingProduction > 1 && (
+                    <Button variant="secondary" className="px-3" disabled={!online || busy} onClick={() => markReady.mutate({ item: item.id, delta: p.pendingProduction })} aria-label={`All ${p.pendingProduction} ${label} ready`}>
+                      All
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <CheckCircle2 className="size-6 text-ok" aria-label={`${label} all ready`} />
+              )}
+              {p.ready > 0 && (
+                <Button size="icon" variant="ghost" icon={Minus} aria-label={`Undo one ${label} ready`} disabled={!online || busy} onClick={() => markReady.mutate({ item: item.id, delta: -1 })} />
+              )}
+            </li>
+          )
+        })}
+      </ul>
+
+      {pending > 0 && g.rows.length > 1 && (
+        <Button
+          variant="primary"
+          size="lg"
+          block
+          icon={CheckCircle2}
+          disabled={!online || busy}
+          loading={markMany.isPending}
+          onClick={() =>
+            markMany.mutate({ changes: g.rows.map(({ item }) => ({ item: item.id, delta: Math.max(item.qty_required - item.qty_ready, 0) })) })
+          }
+        >
+          All {pending} pieces ready
+        </Button>
       )}
+
       {open.length > 0 && (
         <div className="flex flex-col gap-2 rounded-xl bg-bad-bg/60 p-2">
-          {open.map((q) => (
+          {open.map(({ q, label }) => (
             <div key={q.id} className="flex flex-col gap-1">
+              <div className="text-xs font-semibold text-muted">Size {label}</div>
               <IssueLine issue={q} />
               {(q.status === 'reprint_ready' || !q.dtf_relevant) && (
                 <Button variant="ghost" icon={CheckCircle2} disabled={!online} onClick={() => resolve.mutate({ issue: q.id })}>
@@ -182,16 +246,32 @@ function TshirtItem({ it, issues, dtfReady, onReport }: { it: ProdItemT; issues:
           ))}
         </div>
       )}
-      <div className="flex gap-2">
-        <Button className="flex-1" variant="danger" icon={AlertTriangle} disabled={!online} onClick={onReport}>
-          Report problem
-        </Button>
-        {p.ready > 0 && (
-          <Button variant="ghost" icon={Minus} aria-label="Undo one ready" disabled={!online || markReady.isPending} onClick={() => markReady.mutate({ item: it.id, delta: -1 })}>
-            Undo 1
-          </Button>
-        )}
-      </div>
+
+      <Button
+        variant="danger"
+        icon={AlertTriangle}
+        disabled={!online}
+        onClick={() => (g.rows.length === 1 ? onReport(g.rows[0]!.item) : setPicking(true))}
+      >
+        Report problem
+      </Button>
+
+      <Sheet open={picking} onOpenChange={setPicking} title="Which size has the problem?" description={g.title}>
+        <div className="grid grid-cols-2 gap-2">
+          {g.rows.map(({ item, label }) => (
+            <Button
+              key={item.id}
+              size="lg"
+              onClick={() => {
+                setPicking(false)
+                onReport(item)
+              }}
+            >
+              {label} · {item.qty_required} pc{item.qty_required === 1 ? '' : 's'}
+            </Button>
+          ))}
+        </div>
+      </Sheet>
     </Card>
   )
 }

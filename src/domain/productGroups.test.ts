@@ -10,8 +10,8 @@ const item = (o: Partial<GroupableItem>): GroupableItem => ({
 
 describe('shortSize', () => {
   it.each([
-    ['Small', 'S'], ['Medium', 'M'], ['Large', 'L'], ['XL', 'XL'], ['X-Large', 'XL'], ['XXL', '2XL'],
-    ['Medium(Oversized)', 'M (Oversized)'], ['Navy', 'Navy'], ['M', 'M'],
+    ['Small', 'Small'], ['Medium', 'Medium'], ['Large', 'Large'], ['S', 'Small'], ['M', 'Medium'], ['L', 'Large'],
+    ['XL', 'XL'], ['X-Large', 'XL'], ['XXL', '2XL'], ['Medium(Oversized)', 'Medium (Oversized)'], ['Navy', 'Navy'],
   ])('%s → %s', (a, b) => expect(shortSize(a)).toBe(b))
 })
 
@@ -24,7 +24,7 @@ describe('groupByProduct', () => {
     ])
     expect(groups).toHaveLength(1)
     expect(groups[0]!.required).toBe(4)
-    expect(sizeSummary(groups[0]!)).toBe('M × 1 | L × 1 | XL × 2')
+    expect(sizeSummary(groups[0]!)).toBe('Medium × 1 | Large × 1 | XL × 2')
   })
 
   it('keeps every SKU as its own row (no data merged)', () => {
@@ -56,13 +56,13 @@ describe('groupByProduct', () => {
       item({ variant_title: 'Medium / OVERSIZED', qty_required: 3 }),
     ])[0]!
     expect(g.common).toBe('OVERSIZED')
-    expect(sizeSummary(g)).toBe('S × 1 | M × 3')
+    expect(sizeSummary(g)).toBe('Small × 1 | Medium × 3')
   })
 
   it('shared fit in parentheses is pulled out too', () => {
     const g = groupByProduct([item({ variant_title: 'Medium(Oversized)' }), item({ variant_title: 'XL(Oversized)' })])[0]!
     expect(g.common).toBe('Oversized')
-    expect(sizeSummary(g)).toBe('M × 1 | XL × 1')
+    expect(sizeSummary(g)).toBe('Medium × 1 | XL × 1')
   })
 
   it('keeps colour when variants differ by colour', () => {
@@ -72,12 +72,12 @@ describe('groupByProduct', () => {
       item({ variant_title: 'M / Navy' }),
     ])[0]!
     expect(g.common).toBeNull()
-    expect(sizeSummary(g)).toBe('S / Navy × 1 | M / Brown × 1 | M / Navy × 1')
+    expect(sizeSummary(g)).toBe('Small / Navy × 1 | Medium / Brown × 1 | Medium / Navy × 1')
   })
 
   it('a single variant keeps its full label', () => {
     const g = groupByProduct([item({ variant_title: 'Small / OVERSIZED' })])[0]!
-    expect(sizeSummary(g)).toBe('S / OVERSIZED × 1')
+    expect(sizeSummary(g)).toBe('Small / OVERSIZED × 1')
     expect(g.common).toBeNull()
   })
 

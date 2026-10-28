@@ -1,9 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Factory, RefreshCw, TriangleAlert } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { invalidateWork } from '../data/mutations'
-import { useCatalog, useSyncCatalog } from '../data/production'
+import { CATALOG_MAX_AGE_MS, useCatalog, useSyncCatalog } from '../data/production'
 import type { Item } from '../domain/schemas'
 import { productionKey, splitLineName } from '../domain/shopifyCatalog'
 import { useOnline } from '../lib/hooks'
@@ -77,7 +77,21 @@ export function PushSheet({ open, onOpenChange, batchId, items }: { open: boolea
   const pieces = lines.reduce((s, l) => s + l.qty, 0)
   const unmatched = lines.filter((l) => !l.matched).length
   const unconfirmed = lines.filter((l) => l.matched && !l.confirmed).length
-  const noCatalog = catalog.isSuccess && catalog.data.products.length === 0
+  const noCatalog = catalog.isSuccess && catalog.data?.products.length === 0
+
+  // Keep the catalogue fresh without anyone remembering to press Sync: when the sheet opens and
+  // the catalogue is empty, older than 6 h, or a product here has no match (newly added/renamed
+  // on Shopify), fetch the Shopify feed once before pushing.
+  const autoSynced = useRef(false)
+  const { mutate: runSync, isPending: syncing } = sync
+  useEffect(() => {
+    if (!open || !online || autoSynced.current || !catalog.isSuccess || syncing) return
+    const age = catalog.lastSync ? Date.now() - new Date(catalog.lastSync).getTime() : Infinity
+    if (noCatalog || age > CATALOG_MAX_AGE_MS || (unmatched > 0 && age > 10 * 60_000)) {
+      autoSynced.current = true
+      runSync()
+    }
+  }, [open, online, catalog.isSuccess, catalog.lastSync, noCatalog, unmatched, syncing, runSync])
 
   const push = async () => {
     setBusy(true)
@@ -120,12 +134,21 @@ export function PushSheet({ open, onOpenChange, batchId, items }: { open: boolea
       title="Push batch to production"
       description="Only products allocated to the Supplier are sent. Both suppliers will see them with their Shopify pictures."
       footer={
-        <Button variant="primary" size="lg" block icon={Factory} disabled={!lines.length || !online || catalog.isPending} loading={busy} onClick={() => void push()}>
+        <Button variant="primary" size="lg" block icon={Factory} disabled={!lines.length || !online || catalog.isPending || catalog.isError || sync.isPending} loading={busy} onClick={() => void push()}>
           {lines.length ? `Push ${lines.length} product${lines.length === 1 ? '' : 's'} · ${pieces} pcs` : 'Nothing to push'}
         </Button>
       }
     >
       <div className="flex flex-col gap-3">
+        {sync.isPending && <Pill tone="info" icon={RefreshCw}>Updating product pictures from Shopify…</Pill>}
+        {catalog.isError && (
+          <div role="alert" className="flex flex-col gap-2 rounded-xl bg-bad-bg p-3 text-sm text-bad">
+            <span>Could not load the product pictures. Check your connection and try again — pushing now would send products without pictures.</span>
+            <Button icon={RefreshCw} loading={catalog.isFetching} onClick={() => void catalog.refetch()}>
+              Try again
+            </Button>
+          </div>
+        )}
         {noCatalog && (
           <div className="flex flex-col gap-2 rounded-xl bg-warn-bg p-3 text-sm text-warn">
             <span>Product pictures are not loaded yet. Sync your Shopify products first so suppliers can see the pictures.</span>

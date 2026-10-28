@@ -124,6 +124,20 @@ describe('shopify catalogue', () => {
 
   it('returns null for unknown products', () => expect(match('Mystery Cap - One size')).toBeNull())
 
+  it('tolerates roman numerals typed as lowercase L, dash variants and mojibake', () => {
+    const extra = flattenFeed([
+      { id: 20, title: 'Batman lll Oversized Hoodie', handle: 'b3', options: [{ name: 'Size', position: 1 }], images: [], variants: [{ id: 201, title: 'XL', option1: 'XL', option2: null, option3: null }] },
+      { id: 21, title: 'Sukuna lll Oversized Anime T-Shirt – Black Combed Cotton', handle: 's3', options: [{ name: 'Size', position: 1 }, { name: 'Fit', position: 2 }], images: [], variants: [{ id: 211, title: 'Small / OVERSIZED', option1: 'Small', option2: 'OVERSIZED', option3: null }] },
+    ])
+    const m2 = buildMatcher(extra.products, extra.variants)
+    expect(m2('Batman III Oversized Hoodie - XL')?.variant?.variant_id).toBe(201)
+    expect(m2('Batman lll Oversized Hoodie - XL')?.variant?.variant_id).toBe(201)
+    expect(m2('Sukuna lll Oversized Anime T-Shirt â€“ Black Combed Cotton - Small / OVERSIZED')?.variant?.variant_id).toBe(211)
+    expect(m2('Sukuna III Oversized Anime T-Shirt — Black Combed Cotton - Small / OVERSIZED')?.variant?.variant_id).toBe(211)
+    // A single "l" or normal words are untouched; different numerals do not match.
+    expect(m2('Batman II Oversized Hoodie - XL')).toBeNull()
+  })
+
   it('production keys combine identical variants', () => {
     expect(productionKey('Basic Oversized T-shirt - S / Navy', match('Basic Oversized T-shirt - S / Navy'))).toBe('v:101')
     expect(productionKey('Mystery Cap', null)).toBe('n:mystery cap')

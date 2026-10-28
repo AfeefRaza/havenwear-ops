@@ -10,6 +10,7 @@ import { Button, Pill, Stepper, TextField } from './ui'
 /** Normal Shopify product picture (lazy-loaded, sized for phones). */
 export function ProductImage({ src, alt, size = 'md' }: { src: string | null; alt: string; size?: 'sm' | 'md' | 'lg' }) {
   const [broken, setBroken] = useState(false)
+  const [retried, setRetried] = useState(false)
   const box = size === 'sm' ? 'size-14' : size === 'lg' ? 'size-28' : 'size-20'
   if (!src || broken) {
     return (
@@ -19,7 +20,7 @@ export function ProductImage({ src, alt, size = 'md' }: { src: string | null; al
     )
   }
   const w = size === 'lg' ? 400 : 240
-  const url = src.includes('?') ? `${src}&width=${w}` : `${src}?width=${w}`
+  const url = retried ? src : src.includes('?') ? `${src}&width=${w}` : `${src}?width=${w}`
   return (
     <img
       src={url}
@@ -27,7 +28,7 @@ export function ProductImage({ src, alt, size = 'md' }: { src: string | null; al
       loading="lazy"
       decoding="async"
       referrerPolicy="no-referrer"
-      onError={() => setBroken(true)}
+      onError={() => (retried ? setBroken(true) : setRetried(true))}
       className={cn(box, 'shrink-0 rounded-xl bg-surface-2 object-cover')}
     />
   )
@@ -134,7 +135,12 @@ export function ProductGallery({ images, alt }: { images: (string | null | undef
   const pics = [...new Set(images.filter((x): x is string => !!x))].slice(0, 2)
   const [zoom, setZoom] = useState<string | null>(null)
   const [broken, setBroken] = useState<Set<string>>(new Set())
+  // A picture that fails once is retried at its original size (a flaky mobile connection or a
+  // resize hiccup on Shopify's CDN) before we give up and show "No picture".
+  const [retried, setRetried] = useState<Set<string>>(new Set())
   const ok = pics.filter((p) => !broken.has(p))
+  const failed = (src: string) =>
+    retried.has(src) ? setBroken((b) => new Set(b).add(src)) : setRetried((r) => new Set(r).add(src))
 
   if (!ok.length) {
     return (
@@ -158,12 +164,12 @@ export function ProductGallery({ images, alt }: { images: (string | null | undef
             aria-label={`Enlarge picture ${i + 1} of ${alt}`}
           >
             <img
-              src={sized(src, 600)}
+              src={retried.has(src) ? src : sized(src, 600)}
               alt={`${alt} (view ${i + 1})`}
               loading="lazy"
               decoding="async"
               referrerPolicy="no-referrer"
-              onError={() => setBroken((b) => new Set(b).add(src))}
+              onError={() => failed(src)}
               className={cn('size-full', ok.length === 1 ? 'object-contain' : 'object-cover')}
             />
             <span className="absolute bottom-1.5 right-1.5 grid size-8 place-items-center rounded-full bg-black/55 text-white" aria-hidden>

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { z } from 'zod'
 import { useToast } from '../components/Toast'
 import { parseRows } from '../domain/schemas'
@@ -204,19 +205,71 @@ async function fetchAllRows<T>(table: string, ws: string, schema: z.ZodType<T>, 
   }
 }
 
+async function loadCatalog(ws: string) {
+  const [products, variants] = await Promise.all([
+    fetchAllRows('shopify_products', ws, CatalogProductRow, 'product_id'),
+    fetchAllRows('shopify_variants', ws, CatalogVariantRow, 'variant_id'),
+  ])
+  return { products, variants }
+}
+
 export function useCatalog() {
   const ws = useAnyWorkspaceId()
-  return useQuery({
+  // Only plain data goes into the query cache: it is saved to the device for offline use, and a
+  // function stored there (the matcher) would be silently dropped on reload — which left every
+  // push after an app restart without product pictures. The matcher is rebuilt in memory instead.
+  const q = useQuery({
     queryKey: pk.catalog(ws),
     staleTime: 10 * 60_000,
-    queryFn: async () => {
-      const [products, variants] = await Promise.all([
-        fetchAllRows('shopify_products', ws, CatalogProductRow, 'product_id'),
-        fetchAllRows('shopify_variants', ws, CatalogVariantRow, 'variant_id'),
-      ])
-      return { products, variants, match: buildMatcher(products as CatalogProduct[], variants as CatalogVariant[]) }
-    },
+    queryFn: () => loadCatalog(ws),
   })
+  const data = useMemo(
+    () => (q.data ? { ...q.data, match: buildMatcher(q.data.products as CatalogProduct[], q.data.variants as CatalogVariant[]) } : undefined),
+    [q.data],
+  )
+  const lastSync = useMemo(() => (q.data?.products ?? []).reduce<string | null>((m, p) => (!m || p.synced_at > m ? p.synced_at : m), null), [q.data])
+  return { ...q, data, lastSync }
+}
+
+/** Catalogue older than this is re-synced automatically from the Shopify feed. */
+export const CATALOG_MAX_AGE_MS = 6 * 60 * 60 * 1000
+
+/** Items pushed without a Shopify match → find their product now (same matcher as the push). */
+async function rematchUnmatched(ws: string) {
+  const { data, error } = await supabase
+    .from('production_items')
+    .select('id, product_title, variant_title')
+    .eq('workspace_id', ws)
+    .is('shopify_product_id', null)
+    .range(0, 4999)
+  if (error) throw error
+  const items = (data ?? []) as { id: string; product_title: string; variant_title: string | null }[]
+  if (!items.length) return 0
+  const { products, variants } = await loadCatalog(ws)
+  const match = buildMatcher(products as CatalogProduct[], variants as CatalogVariant[])
+  const changes = items.flatMap((it) => {
+    const m = match(it.variant_title ? `${it.product_title} - ${it.variant_title}` : it.product_title) ?? match(it.product_title)
+    if (!m) return []
+    const main = m.variant?.image_url ?? m.product.image_url
+    return [{
+      id: it.id,
+      shopify_product_id: m.product.product_id,
+      shopify_variant_id: m.variant?.variant_id ?? null,
+      image_url: main,
+      image2_url: [m.product.image_url, m.product.image2_url].find((x) => x && x !== main) ?? null,
+      size: m.variant?.size ?? null,
+      color: m.variant?.color ?? null,
+      front_print: m.product.front_print,
+      back_print: m.product.back_print,
+    }]
+  })
+  let fixed = 0
+  for (let i = 0; i < changes.length; i += 200) {
+    const { data: n, error: e } = await supabase.rpc('production_rematch', { p_workspace: ws, p_changes: changes.slice(i, i + 200) })
+    if (e) throw e
+    fixed += Number(n ?? 0)
+  }
+  return fixed
 }
 
 /** Pulls the public storefront feed (no API key) and upserts it. Print settings are never overwritten. */
@@ -255,7 +308,9 @@ export function useSyncCatalog() {
       // Fill in pictures for products that were already pushed to production.
       const { error: e3 } = await supabase.rpc('production_refresh_images', { p_workspace: ws })
       if (e3) throw e3
-      return { products: products.length, variants: variants.length }
+      // And give pictures to items that were pushed without a match (new/renamed products).
+      const rematched = await rematchUnmatched(ws)
+      return { products: products.length, variants: variants.length, rematched }
     },
     onSuccess: (r) => {
       toast({ tone: 'success', message: `Synced ${r.products} products (${r.variants} variants) from Shopify` })

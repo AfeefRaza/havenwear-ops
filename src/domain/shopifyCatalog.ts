@@ -44,7 +44,22 @@ export interface CatalogVariant {
 
 const SHOPIFY_CDN = /^https:\/\/cdn\.shopify\.com\//
 
-export const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim()
+/**
+ * Normalises a product/line name for matching:
+ *  - repairs common mojibake ("â€“" → "–") from text decoded with the wrong encoding
+ *  - treats every dash variant (– — ‒ −) as "-"
+ *  - roman numerals typed as lowercase L's ("Batman lll") match "Batman III"
+ *  - case and repeated spaces are ignored
+ */
+export const norm = (s: string) =>
+  s
+    .replace(/â€“|â€”|â€’|â€‘/g, '-')
+    .replace(/[\u2010-\u2015\u2212]/g, '-')
+    .replace(/[\u00a0\u2000-\u200b]/g, ' ')
+    .replace(/\b[lI]{2,3}\b/g, (m) => 'i'.repeat(m.length))
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
 
 /** Shopify sometimes returns protocol-relative or http URLs; keep only https CDN images. */
 export function cleanImage(src: string | null | undefined): string | null {
@@ -107,22 +122,23 @@ export interface MatchResult {
 
 /** Index for fast repeated matching. */
 export function buildMatcher(products: CatalogProduct[], variants: CatalogVariant[]) {
-  const sorted = [...products].sort((a, b) => b.title.length - a.title.length)
-  const byProduct = new Map<number, CatalogVariant[]>()
-  for (const v of variants) byProduct.set(v.product_id, [...(byProduct.get(v.product_id) ?? []), v])
+  const sorted = products.map((p) => ({ p, t: norm(p.title) })).sort((a, b) => b.t.length - a.t.length)
+  const byProduct = new Map<number, { v: CatalogVariant; t: string }[]>()
+  for (const v of variants) byProduct.set(v.product_id, [...(byProduct.get(v.product_id) ?? []), { v, t: norm(v.title) }])
 
   return function match(lineName: string): MatchResult | null {
     const n = norm(lineName)
-    for (const p of sorted) {
-      const t = norm(p.title)
+    for (const { p, t } of sorted) {
       if (n === t) {
         const only = byProduct.get(p.product_id)
-        return { product: p, variant: only && only.length === 1 ? only[0]! : null, variantTitle: null }
+        return { product: p, variant: only && only.length === 1 ? only[0]!.v : null, variantTitle: null }
       }
       if (n.startsWith(t + ' - ')) {
         const vt = n.slice(t.length + 3)
-        const variant = (byProduct.get(p.product_id) ?? []).find((v) => norm(v.title) === vt) ?? null
-        return { product: p, variant, variantTitle: lineName.trim().slice(lineName.trim().length - vt.length) }
+        const variant = (byProduct.get(p.product_id) ?? []).find((x) => x.t === vt)?.v ?? null
+        const raw = lineName.trim()
+        const i = raw.lastIndexOf(' - ')
+        return { product: p, variant, variantTitle: i > 0 ? raw.slice(i + 3).trim() : vt }
       }
     }
     return null

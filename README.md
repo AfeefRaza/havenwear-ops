@@ -139,7 +139,9 @@ Three parties, one app: **Havenwear** (full app), the **T-shirt supplier** and t
 All production screens refresh automatically every 15 seconds.
 
 ### Product pictures & print settings
-**More → Shopify products → Sync from Shopify** loads pictures, sizes and colours from the store's public catalogue (`https://havenwearpakistan.com/products.json`). No Shopify password or API key is stored. For each product choose **Front + Back / Front only / Back only / No print** once. Unconfirmed products are assumed Front + Back and flagged.
+The database fetches pictures, sizes and colours from the store's public catalogue (`https://havenwearpakistan.com/products.json`) **every hour by itself** (`pg_cron` job `havenwear-shopify-sync`), then matches every production item to its product, including items already pushed. New items are also matched as they are inserted. Matching is exact only (name, ignoring case/spacing/dash style, `lll` = `III`, or the Shopify handle, which survives renames), so a similar product is never guessed. No Shopify password or API key is stored.
+
+Products that later become Draft stay in the catalogue with their picture, but a product that was **never published** is not in the public feed. If a product cannot be matched, or the sync is failing, **Production** shows a card at the top: tap **Link**, choose the Shopify product, and it stays linked for future batches. **More → Shopify products → Sync again** runs the sync immediately. For each product choose **Front + Back / Front only / Back only / No print** once. Unconfirmed products are assumed Front + Back and flagged.
 
 ### DTF meterage & cost
 When the DTF supplier taps **File Ready** they must enter the total **DTF meters** used (decimals allowed, e.g. 10.2 / 7.5 / 12.75). Each entry stores the **cost per meter in force at that moment**, so changing the rate later never rewrites past costs (e.g. at PKR 1,000/m: 1.2 m = PKR 1,200, 10.2 m = PKR 10,200). Set the rate in **More → Settings → DTF printing cost** (owner only; currently PKR 1,000 per meter). Suppliers can never see the rate or any cost.

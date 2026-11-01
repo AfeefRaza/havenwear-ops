@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import { z } from 'zod'
 import { useToast } from '../components/Toast'
 import { parseRows } from '../domain/schemas'
-import { buildMatcher, flattenFeed, type CatalogProduct, type CatalogVariant, type FeedProduct } from '../domain/shopifyCatalog'
+import { buildMatcher, type CatalogProduct, type CatalogVariant } from '../domain/shopifyCatalog'
 import { assertOnline, errorMessage, supabase } from '../lib/supabase'
 import { useAnyWorkspaceId } from '../lib/workspace'
 import { invalidateWork } from './mutations'
@@ -234,45 +234,7 @@ export function useCatalog() {
 /** Catalogue older than this is re-synced automatically from the Shopify feed. */
 export const CATALOG_MAX_AGE_MS = 6 * 60 * 60 * 1000
 
-/** Items pushed without a Shopify match → find their product now (same matcher as the push). */
-async function rematchUnmatched(ws: string) {
-  const { data, error } = await supabase
-    .from('production_items')
-    .select('id, product_title, variant_title')
-    .eq('workspace_id', ws)
-    .is('shopify_product_id', null)
-    .range(0, 4999)
-  if (error) throw error
-  const items = (data ?? []) as { id: string; product_title: string; variant_title: string | null }[]
-  if (!items.length) return 0
-  const { products, variants } = await loadCatalog(ws)
-  const match = buildMatcher(products as CatalogProduct[], variants as CatalogVariant[])
-  const changes = items.flatMap((it) => {
-    const m = match(it.variant_title ? `${it.product_title} - ${it.variant_title}` : it.product_title) ?? match(it.product_title)
-    if (!m) return []
-    const main = m.variant?.image_url ?? m.product.image_url
-    return [{
-      id: it.id,
-      shopify_product_id: m.product.product_id,
-      shopify_variant_id: m.variant?.variant_id ?? null,
-      image_url: main,
-      image2_url: [m.product.image_url, m.product.image2_url].find((x) => x && x !== main) ?? null,
-      size: m.variant?.size ?? null,
-      color: m.variant?.color ?? null,
-      front_print: m.product.front_print,
-      back_print: m.product.back_print,
-    }]
-  })
-  let fixed = 0
-  for (let i = 0; i < changes.length; i += 200) {
-    const { data: n, error: e } = await supabase.rpc('production_rematch', { p_workspace: ws, p_changes: changes.slice(i, i + 200) })
-    if (e) throw e
-    fixed += Number(n ?? 0)
-  }
-  return fixed
-}
-
-/** Pulls the public storefront feed (no API key) and upserts it. Print settings are never overwritten. */
+/** "Sync now": the database fetches the Shopify feed (it also does this every hour by itself). */
 export function useSyncCatalog() {
   const ws = useAnyWorkspaceId()
   const qc = useQueryClient()
@@ -280,44 +242,57 @@ export function useSyncCatalog() {
   return useMutation({
     mutationFn: async () => {
       assertOnline()
-      const feed: FeedProduct[] = []
-      for (let page = 1; page <= 40; page++) {
-        const res = await fetch(`https://${SHOPIFY_STORE}/products.json?limit=250&page=${page}`, { credentials: 'omit' })
-        if (!res.ok) throw new Error(`Shopify returned ${res.status}`)
-        const json = (await res.json()) as { products?: FeedProduct[] }
-        const batch = json.products ?? []
-        feed.push(...batch)
-        if (batch.length < 250) break
-      }
-      const { products, variants } = flattenFeed(feed)
-      const now = new Date().toISOString()
-      // Upsert only feed-owned columns so front/back print settings survive re-syncs.
-      for (let i = 0; i < products.length; i += 500) {
-        const rows = products.slice(i, i + 500).map((p) => ({
-          workspace_id: ws, product_id: p.product_id, handle: p.handle, title: p.title, product_type: p.product_type, image_url: p.image_url,
-          image2_url: p.image2_url, synced_at: now,
-        }))
-        const { error } = await supabase.from('shopify_products').upsert(rows, { onConflict: 'workspace_id,product_id' })
-        if (error) throw error
-      }
-      for (let i = 0; i < variants.length; i += 1000) {
-        const rows = variants.slice(i, i + 1000).map((v) => ({ workspace_id: ws, ...v }))
-        const { error } = await supabase.from('shopify_variants').upsert(rows, { onConflict: 'workspace_id,variant_id' })
-        if (error) throw error
-      }
-      // Fill in pictures for products that were already pushed to production.
-      const { error: e3 } = await supabase.rpc('production_refresh_images', { p_workspace: ws })
-      if (e3) throw e3
-      // And give pictures to items that were pushed without a match (new/renamed products).
-      const rematched = await rematchUnmatched(ws)
-      return { products: products.length, variants: variants.length, rematched }
+      const { data, error } = await supabase.rpc('shopify_sync_now', { p_workspace: ws })
+      if (error) throw error
+      const r = data as { ok: boolean; error?: string; products?: number; variants?: number }
+      if (!r.ok) throw new Error(r.error ?? 'Sync failed')
+      return r
     },
     onSuccess: (r) => {
       toast({ tone: 'success', message: `Synced ${r.products} products (${r.variants} variants) from Shopify` })
       void qc.invalidateQueries({ queryKey: pk.catalog(ws) })
       void qc.invalidateQueries({ queryKey: ['prod-items'] })
+      void qc.invalidateQueries({ queryKey: ['shopify-sync', ws] })
     },
-    onError: (e) => toast({ tone: 'error', message: `Shopify sync failed: ${errorMessage(e)}` }),
+    onError: (e) => {
+      toast({ tone: 'error', message: `Shopify sync failed: ${errorMessage(e)}` })
+      void qc.invalidateQueries({ queryKey: ['shopify-sync', ws] })
+    },
+  })
+}
+
+const SyncStatusRow = z.object({ last_attempt_at: ts.nullable(), last_success_at: ts.nullable(), last_error: z.string().nullable() })
+
+/** Result of the last server sync (owner/member only; suppliers get no row). */
+export function useSyncStatus() {
+  const ws = useAnyWorkspaceId()
+  return useQuery({
+    queryKey: ['shopify-sync', ws],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('shopify_sync_status').select('last_attempt_at, last_success_at, last_error').eq('workspace_id', ws).maybeSingle()
+      if (error) throw error
+      return data ? SyncStatusRow.parse(data) : null
+    },
+  })
+}
+
+/** Links an unmatched production title to a Shopify product; remembered for future batches. */
+export function useLinkProduct() {
+  const ws = useAnyWorkspaceId()
+  const qc = useQueryClient()
+  const toast = useToast()
+  return useMutation({
+    mutationFn: async (v: { title: string; product: number }) => {
+      assertOnline()
+      const { error } = await supabase.rpc('production_link_product', { p_workspace: ws, p_title: v.title, p_product: v.product })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast({ tone: 'success', message: 'Linked. Suppliers now see the picture.' })
+      void qc.invalidateQueries({ queryKey: ['prod-items'] })
+    },
+    onError: (e) => toast({ tone: 'error', message: errorMessage(e) }),
   })
 }
 

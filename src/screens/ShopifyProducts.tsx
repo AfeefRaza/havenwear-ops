@@ -35,7 +35,7 @@ export default function ShopifyProducts() {
       <PageHeader title="Shopify products" back subtitle={`${SHOPIFY_STORE} · pictures & print settings`} />
       <Card className="flex flex-col gap-3 text-sm">
         <p className="text-muted">
-          Product pictures, sizes and colours come from your store’s public catalogue — no Shopify password or API key is stored. Set{' '}
+          Product pictures, sizes and colours update by themselves every hour from your store’s public catalogue — no Shopify password or API key is stored. Set{' '}
           <strong>Front / Back</strong> print once per product; suppliers see it on every pushed batch.
         </p>
         <div className="flex flex-wrap items-center gap-2">

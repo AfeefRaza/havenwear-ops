@@ -2,6 +2,7 @@ import { AlertTriangle, ChevronRight, Factory, PackageSearch } from 'lucide-reac
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/AppShell'
+import { MissingPictures } from '../components/MissingPictures'
 import { DtfBadge, ProductImage, ProductionBar } from '../components/ProductionBits'
 import { Card, EmptyState, ErrorNote, ListSkeleton, Pill, SectionTitle, Segmented } from '../components/ui'
 import { useProdItems, useRunSummaries, type RunSummary } from '../data/production'
@@ -48,6 +49,7 @@ export default function Production() {
   return (
     <>
       <PageHeader title="Production" subtitle="T-shirt supplier & DTF — live" />
+      <MissingPictures />
       {runs.isPending ? (
         <ListSkeleton rows={4} />
       ) : runs.error && !runs.data ? (

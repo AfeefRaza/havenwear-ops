@@ -7,9 +7,11 @@ import { ItemRow } from '../components/ItemRow'
 import { ItemEditSheet } from '../components/ItemSheets'
 import { EmptyState, ErrorNote, ListSkeleton, Pill, SelectField } from '../components/ui'
 import { useCategories, usePendingItems, useRules, type PendingItem } from '../data/queries'
+import { useItemDisplay } from '../data/itemDisplay'
 import { useItemActions } from '../data/useItemActions'
 import { daysBetween, todayISO } from '../domain/dates'
 import { formatDate, formatInt } from '../domain/format'
+import { groupForPicking } from '../domain/itemSort'
 import type { Item } from '../domain/schemas'
 import { useOnline } from '../lib/hooks'
 
@@ -36,15 +38,19 @@ export default function Pending() {
     return [...m.values()]
   }, [items])
 
+  const display = useItemDisplay(items)
   const rows = useMemo<Row[]>(() => {
     const out: Row[] = []
+    const info = (it: PendingItem) => display.get(it.id)!.info
     for (const b of batches) {
       if (batchFilter && b.id !== batchFilter) continue
       out.push({ kind: 'header', key: `h-${b.id}`, ref: b.ref, batchId: b.id, date: b.date, count: b.count })
-      for (const it of items) if (it.batch_id === b.id) out.push({ kind: 'item', key: it.id, item: it })
+      // Within a batch: category → size → product name, same order as the batch screen.
+      const sorted = groupForPicking(items.filter((it) => it.batch_id === b.id), cats.data ?? [], info)
+      for (const c of sorted) for (const sz of c.sizes) for (const it of sz.items) out.push({ kind: 'item', key: it.id, item: it })
     }
     return out
-  }, [batches, items, batchFilter])
+  }, [batches, items, batchFilter, display, cats.data])
 
   const virtualizer = useWindowVirtualizer({
     count: rows.length,
@@ -109,6 +115,8 @@ export default function Pending() {
                     <ul className="pb-2">
                       <ItemRow
                         item={row.item}
+                        image={display.get(row.item.id)?.image ?? null}
+                        line={display.get(row.item.id)?.info}
                         categories={cats.data ?? []}
                         daysWaiting={daysBetween(row.item.batch_date, today)}
                         readOnly={!online}

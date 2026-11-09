@@ -125,6 +125,12 @@ export function buildMatcher(products: CatalogProduct[], variants: CatalogVarian
   const sorted = products.map((p) => ({ p, t: norm(p.title) })).sort((a, b) => b.t.length - a.t.length)
   const byProduct = new Map<number, { v: CatalogVariant; t: string }[]>()
   for (const v of variants) byProduct.set(v.product_id, [...(byProduct.get(v.product_id) ?? []), { v, t: norm(v.title) }])
+  const byCompact = new Map<string, CatalogProduct>()
+  const byHandle = new Map<string, CatalogProduct>()
+  for (const { p, t } of sorted) {
+    if (!byCompact.has(compact(t))) byCompact.set(compact(t), p)
+    if (p.handle && !byHandle.has(p.handle)) byHandle.set(p.handle, p)
+  }
 
   return function match(lineName: string): MatchResult | null {
     const n = norm(lineName)
@@ -141,9 +147,25 @@ export function buildMatcher(products: CatalogProduct[], variants: CatalogVarian
         return { product: p, variant, variantTitle: i > 0 ? raw.slice(i + 3).trim() : vt }
       }
     }
+    // Same exact-only fallbacks as the database (private.resolve_product): spacing/punctuation
+    // ("Hard stone" = "Hardstone") and the Shopify handle, which keeps the title from before a rename.
+    const raw = lineName.trim()
+    const i = raw.lastIndexOf(' - ')
+    for (const [title, vt] of i > 0 ? [[raw.slice(0, i), raw.slice(i + 3).trim()], [raw, null]] : [[raw, null]]) {
+      const n = norm(title!)
+      const c = compact(n)
+      const slug = n.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const hit = byCompact.get(c) ?? byHandle.get(slug)
+      if (!hit) continue
+      const list = byProduct.get(hit.product_id) ?? []
+      const variant = vt ? (list.find((x) => x.t === norm(vt))?.v ?? null) : list.length === 1 ? list[0]!.v : null
+      return { product: hit, variant, variantTitle: vt ?? null }
+    }
     return null
   }
 }
+
+const compact = (normalized: string) => normalized.replace(/[^a-z0-9]/g, '')
 
 /** Stable key used to combine identical lines into one production item. */
 export function productionKey(lineName: string, m: MatchResult | null): string {

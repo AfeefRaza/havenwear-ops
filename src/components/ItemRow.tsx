@@ -3,6 +3,7 @@ import { useRef, useState } from 'react'
 import { formatDate, formatPKR } from '../domain/format'
 import type { Category, Item, ReceivedFromT } from '../domain/schemas'
 import { cn, haptic } from '../lib/hooks'
+import { ProductThumb } from './ProductThumb'
 import { Pill } from './ui'
 
 const SWIPE_AT = 90
@@ -22,6 +23,9 @@ export function ItemRow({
   daysWaiting,
   batchLabel,
   readOnly,
+  image,
+  line,
+  grouped,
 }: {
   item: Item
   categories: Category[]
@@ -33,6 +37,12 @@ export function ItemRow({
   daysWaiting?: number
   batchLabel?: string
   readOnly?: boolean
+  /** Shopify picture; undefined = no thumbnail column (screens that don't load the catalogue). */
+  image?: string | null
+  /** Product title and variant split for display; the full product name is still used everywhere else. */
+  line?: { title: string; variant: string | null }
+  /** Shown under category + size headings: on phones those aren't repeated in the row, to leave room for the name. */
+  grouped?: boolean
 }) {
   const cat = categories.find((c) => c.id === item.resolved_category_id)
   const pending = item.status === 'pending'
@@ -64,7 +74,7 @@ export function ItemRow({
       )}
       <div
         className={cn(
-          'relative flex items-center gap-3 border border-border bg-surface p-3 transition-transform',
+          'relative flex items-center gap-2 border border-border bg-surface p-3 transition-transform sm:gap-3',
           'rounded-2xl',
           selected && 'border-info ring-2 ring-info/40',
           item.status === 'cancelled' && 'opacity-60',
@@ -112,15 +122,23 @@ export function ItemRow({
           onClick={() => (selectMode ? onToggle?.(item) : onOpen(item))}
           aria-label={`${item.product_name}, quantity ${item.qty}, ${item.status}${selectMode ? '' : '. Tap to edit'}`}
         >
-          <div className={cn('line-clamp-2 text-sm font-medium', item.status === 'cancelled' && 'line-through')}>{item.product_name}</div>
+          <div className={cn('line-clamp-2 text-sm font-medium', item.status === 'cancelled' && 'line-through')}>
+            {line?.variant ? (
+              <>
+                {line.title} <span className={cn('whitespace-nowrap font-bold', grouped && 'hidden sm:inline')}>· {line.variant}</span>
+              </>
+            ) : (
+              item.product_name
+            )}
+          </div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted">
             <span className="tabular font-semibold text-text">× {item.qty}</span>
             {cat ? (
-              <span>{cat.name}</span>
+              <span className={cn(grouped && 'hidden sm:inline')}>{cat.name}</span>
             ) : item.status !== 'cancelled' ? (
               <Pill tone="warn" icon={TriangleAlert}>Unmatched</Pill>
             ) : null}
-            {cat && <span className="tabular">· {formatPKR(item.unit_cost_pkr)}</span>}
+            {cat && <span className="tabular">{grouped ? <span className="hidden sm:inline">· </span> : '· '}{formatPKR(item.unit_cost_pkr)}</span>}
             {batchLabel && <span>· {batchLabel}</span>}
             {daysWaiting != null && (
               <Pill tone={daysWaiting > 7 ? 'bad' : 'neutral'} icon={Clock}>
@@ -129,6 +147,7 @@ export function ItemRow({
             )}
           </div>
         </button>
+        {image !== undefined && <ProductThumb src={image} alt={item.product_name} />}
         {!selectMode && (
           <div className="flex shrink-0 items-center gap-1.5">
             {inProduction ? (
@@ -139,7 +158,7 @@ export function ItemRow({
                   type="button"
                   onClick={() => onReceive(item, 'supplier')}
                   className={cn(
-                    'flex min-h-11 flex-col items-center justify-center rounded-xl px-2.5 text-[11px] font-semibold active:scale-95',
+                    'flex min-h-11 sm:min-w-[4.5rem] flex-col items-center justify-center rounded-xl px-2.5 text-[11px] font-semibold active:scale-95',
                     planned ? 'bg-primary text-primary-fg' : 'bg-ok-bg text-ok',
                   )}
                   aria-pressed={planned}
@@ -151,7 +170,7 @@ export function ItemRow({
                 <button
                   type="button"
                   onClick={() => onReceive(item, 'return')}
-                  className="flex min-h-11 flex-col items-center justify-center rounded-xl bg-surface-2 px-2.5 text-[11px] font-semibold text-info active:scale-95"
+                  className="flex min-h-11 sm:min-w-[4.5rem] flex-col items-center justify-center rounded-xl bg-surface-2 px-2.5 text-[11px] font-semibold text-info active:scale-95"
                   aria-label={`Mark ${item.product_name} received from return stock`}
                 >
                   <RotateCcw className="size-4" aria-hidden />

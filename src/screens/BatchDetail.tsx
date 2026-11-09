@@ -12,9 +12,11 @@ import { useToast } from '../components/Toast'
 import { Button, Card, EmptyState, ErrorNote, ListSkeleton, ProgressBar, SectionTitle } from '../components/ui'
 import { useArchiveBatch, useDeleteBatch } from '../data/mutations'
 import { useBatch, useBatchItems, useCategories, useRules } from '../data/queries'
+import { useItemDisplay } from '../data/itemDisplay'
 import { useItemActions } from '../data/useItemActions'
 import { useRunSummaries } from '../data/production'
 import { formatDate, formatInt, formatPKR, formatPct } from '../domain/format'
+import { groupForPicking } from '../domain/itemSort'
 import type { Item } from '../domain/schemas'
 import { batchStage } from '../domain/stage'
 import { billVariance, computeTotals } from '../domain/totals'
@@ -43,22 +45,23 @@ export default function BatchDetail() {
   const runs = useRunSummaries()
 
   const items = useMemo(() => itemsQ.data ?? [], [itemsQ.data])
-  const categories = cats.data ?? []
+  const categories = useMemo(() => cats.data ?? [], [cats.data])
   const totals = useMemo(() => computeTotals(items), [items])
   const b = batch.data
   const archived = !!b?.archived_at
   const stage = b ? batchStage(b, items) : 'empty'
 
+  const display = useItemDisplay(items)
+  // Each status section is sorted category → size → product name so packers work through it in order.
   const groups = useMemo(() => {
-    const pending = items.filter((i) => i.status === 'pending')
-    const received = items.filter((i) => i.status === 'received')
-    const cancelled = items.filter((i) => i.status === 'cancelled')
+    const info = (it: Item) => display.get(it.id)!.info
+    const section = (key: string, label: string, rows: Item[]) => ({ key, title: `${label} · ${rows.length}`, rows, cats: groupForPicking(rows, categories, info) })
     return [
-      { key: 'pending', title: `Pending · ${pending.length}`, rows: pending },
-      { key: 'received', title: `Received · ${received.length}`, rows: received },
-      { key: 'cancelled', title: `Cancelled · ${cancelled.length}`, rows: cancelled },
+      section('pending', 'Pending', items.filter((i) => i.status === 'pending')),
+      section('received', 'Received', items.filter((i) => i.status === 'received')),
+      section('cancelled', 'Cancelled', items.filter((i) => i.status === 'cancelled')),
     ].filter((g) => g.rows.length)
-  }, [items])
+  }, [items, categories, display])
 
   if (batch.isPending) return <><PageHeader title="Batch" back /><ListSkeleton rows={5} /></>
   if (batch.error && !b) return <><PageHeader title="Batch" back /><ErrorNote error={batch.error} onRetry={() => void batch.refetch()} /></>
@@ -223,11 +226,27 @@ export default function BatchDetail() {
           {groups.map((g) => (
             <section key={g.key} aria-label={g.title}>
               <h3 className="mb-2 px-1 text-xs font-semibold text-muted">{g.title}</h3>
+              {g.cats.map((c) => (
+                <div key={c.key} className="mb-3">
+                  <h4 className="sticky top-0 z-10 -mx-1 mb-1 flex items-baseline justify-between bg-bg/95 px-2 py-1 text-sm font-bold backdrop-blur">
+                    {c.name}
+                    <span className="tabular text-xs font-normal text-muted">
+                      {c.count} line{c.count === 1 ? '' : 's'} · {c.sizes.reduce((n, sz) => n + sz.items.reduce((q, it) => q + it.qty, 0), 0)} pcs
+                    </span>
+                  </h4>
+                  {c.sizes.map((sz) => (
+                    <div key={sz.key}>
+                      <div className="tabular px-1 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                        {sz.label} · {sz.items.reduce((q, it) => q + it.qty, 0)} pcs
+                      </div>
               <ul className="flex flex-col gap-2">
-                {g.rows.map((it) => (
+                {sz.items.map((it) => (
                   <ItemRow
                     key={it.id}
                     item={it}
+                    image={display.get(it.id)?.image ?? null}
+                    line={display.get(it.id)?.info}
+                    grouped
                     categories={categories}
                     readOnly={archived || !online}
                     selectMode={selectMode}
@@ -238,6 +257,10 @@ export default function BatchDetail() {
                   />
                 ))}
               </ul>
+                    </div>
+                  ))}
+                </div>
+              ))}
             </section>
           ))}
         </div>

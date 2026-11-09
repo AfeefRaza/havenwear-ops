@@ -54,6 +54,9 @@ workflows and business rules.
   rule; manual category override beats rules. Cost is snapshotted on the item.
 - Batch items: tap **Supplier** = allocate for manufacture (`supplier_planned`), **Return** = fulfilled
   from return stock. **Push to production** sends only allocated items, combined per Shopify variant.
+- Batch item lists (batch screen, Pending) are sorted **category (Settings order) → size (clothing
+  order) → product name**, display only (`src/domain/itemSort.ts`); thumbnails come from the cached
+  Shopify catalogue match. Nothing is merged.
 - Supplier **Ready** ≠ Havenwear **Received**. Receiving in Production marks batch lines received from
   Supplier and counts as delivered stock (no double entry).
 - Stock per category = opening/adjustments + returns in + supplier deliveries (incl. production

@@ -1,10 +1,12 @@
-import { CheckCircle2, FileCheck2, FileClock, History, PackageCheck, Undo2, X } from 'lucide-react'
+import { CheckCircle2, ClipboardCopy, FileCheck2, FileClock, History, PackageCheck, Undo2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { PageHeader } from '../components/AppShell'
 import { DtfBadge, DtfReadySheet, IssueLine, ItemHeader, ProductionBar } from '../components/ProductionBits'
 import { Sheet } from '../components/Sheet'
+import { useToast } from '../components/Toast'
 import { Button, Card, EmptyState, ListSkeleton, SectionTitle, Stepper } from '../components/ui'
+import { useBatchItems, useCategories } from '../data/queries'
 import {
   useEvents,
   useIssues,
@@ -17,6 +19,8 @@ import {
 } from '../data/production'
 import { formatDate } from '../domain/format'
 import { EVENT_LABEL, ISSUE_LABEL, itemProgress, ROLE_LABEL, type IssueKind } from '../domain/production'
+import { formatProductionList } from '../domain/productionList'
+import { copyText } from '../lib/clipboard'
 import { useOnline } from '../lib/hooks'
 
 const timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Karachi', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -56,6 +60,7 @@ export default function ProductionRun() {
           <Row label="Ready but not received" value={run.ready_not_received} warn />
           <Row label="Front / back prints" value={`${run.front_prints} / ${run.back_prints}`} />
         </dl>
+        <CopyListButton batchId={run.batch_id} items={items.data ?? []} />
         {run.needs_dtf && (
           <Button
             variant={run.dtf_status === 'file_ready' ? 'secondary' : 'ok'}
@@ -147,6 +152,28 @@ export default function ProductionRun() {
 
       <ReceiveSheet item={receiving} onClose={() => setReceiving(null)} />
     </>
+  )
+}
+
+/** Copies the products of this production batch as a plain list ("Title — Size"), grouped by category. */
+function CopyListButton({ batchId, items }: { batchId: string; items: ProdItemT[] }) {
+  const batchItems = useBatchItems(batchId)
+  const categories = useCategories()
+  const toast = useToast()
+  const copy = async () => {
+    const categoryOf = new Map<string, string | null>()
+    for (const b of batchItems.data ?? []) if (b.production_item_id && !categoryOf.has(b.production_item_id)) categoryOf.set(b.production_item_id, b.resolved_category_id)
+    const text = formatProductionList(
+      items.filter((i) => i.qty_required > 0).map((i) => ({ title: i.product_title, variant: i.variant_title ?? i.size, categoryId: categoryOf.get(i.id) ?? null })),
+      categories.data ?? [],
+    )
+    const ok = text ? await copyText(text) : false
+    toast({ tone: ok ? 'success' : 'error', message: ok ? 'List copied' : text ? 'Could not copy — your browser blocked it' : 'Nothing to copy' })
+  }
+  return (
+    <Button icon={ClipboardCopy} disabled={!items.length || batchItems.isPending || categories.isPending} onClick={() => void copy()}>
+      Copy list of products
+    </Button>
   )
 }
 

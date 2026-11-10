@@ -4,8 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { invalidateWork } from '../data/mutations'
 import { CATALOG_MAX_AGE_MS, useCatalog, useSyncCatalog } from '../data/production'
+import { useCategories } from '../data/queries'
+import { formatProductionList } from '../domain/productionList'
 import type { Item } from '../domain/schemas'
 import { productionKey, splitLineName } from '../domain/shopifyCatalog'
+import { copyText } from '../lib/clipboard'
 import { useOnline } from '../lib/hooks'
 import { assertOnline, errorMessage, supabase } from '../lib/supabase'
 import { PrintBadges, ProductImage } from './ProductionBits'
@@ -35,6 +38,7 @@ interface Line {
 export function PushSheet({ open, onOpenChange, batchId, items }: { open: boolean; onOpenChange: (o: boolean) => void; batchId: string; items: Item[] }) {
   const catalog = useCatalog()
   const sync = useSyncCatalog()
+  const categories = useCategories()
   const toast = useToast()
   const qc = useQueryClient()
   const online = useOnline()
@@ -93,8 +97,17 @@ export function PushSheet({ open, onOpenChange, batchId, items }: { open: boolea
     }
   }, [open, online, catalog.isSuccess, catalog.lastSync, noCatalog, unmatched, syncing, runSync])
 
+  const listText = useMemo(
+    () => formatProductionList(lines.map((l) => ({ title: l.title, variant: l.variant ?? l.size, categoryId: l.items[0]?.resolved_category_id ?? null })), categories.data ?? []),
+    [lines, categories.data],
+  )
+
   const push = async () => {
     setBusy(true)
+    // Start the copy inside the tap (browsers only allow it then); it is filled in once the push succeeds.
+    let release: (t: string) => void = () => undefined
+    let abort: (e: unknown) => void = () => undefined
+    const copying = copyText(new Promise<string>((res, rej) => { release = res; abort = rej }))
     try {
       assertOnline()
       const payload = lines.flatMap((l) =>
@@ -116,11 +129,20 @@ export function PushSheet({ open, onOpenChange, batchId, items }: { open: boolea
       const { data, error } = await supabase.rpc('production_push', { p_batch: batchId, p_lines: payload })
       if (error) throw error
       const r = data as { run_id: string; lines: number; pieces: number }
-      toast({ tone: 'success', message: `Pushed ${r.pieces} pieces to production`, action: { label: 'Open', onClick: () => navigate(`/production/${r.run_id}`) } })
+      release(listText)
+      const copied = await copying
+      toast({
+        tone: 'success',
+        message: copied ? `Pushed ${r.pieces} pieces — list copied` : `Pushed ${r.pieces} pieces to production`,
+        action: copied
+          ? { label: 'Open', onClick: () => navigate(`/production/${r.run_id}`) }
+          : { label: 'Copy list', onClick: () => void copyText(listText).then((ok) => toast({ tone: ok ? 'success' : 'error', message: ok ? 'List copied' : 'Could not copy — open the batch in Production and tap Copy list' })) },
+      })
       invalidateWork(qc)
       for (const k of ['prod-runs', 'prod-items', 'prod-issues']) void qc.invalidateQueries({ queryKey: [k] })
       onOpenChange(false)
     } catch (e) {
+      abort(e)
       toast({ tone: 'error', message: errorMessage(e) })
     } finally {
       setBusy(false)

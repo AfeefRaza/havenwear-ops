@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dtfTotals, formatMeters, groupForDtf, isDtfIssue, itemProgress, parseMeters, type ProdItem } from './production'
+import { dtfTotals, formatMeters, groupForDtf, isDtfIssue, itemProgress, parseMeters, planReceive, type ProdItem } from './production'
 import { buildMatcher, cleanImage, colorFromTitle, flattenFeed, productionKey, splitLineName, type FeedProduct } from './shopifyCatalog'
 
 const item = (o: Partial<ProdItem>): ProdItem => ({
@@ -16,6 +16,41 @@ describe('itemProgress', () => {
   })
   it('received ahead of ready never goes negative', () => {
     expect(itemProgress({ qty_required: 5, qty_ready: 1, qty_received: 3 }).readyNotReceived).toBe(0)
+  })
+})
+
+describe('planReceive', () => {
+  const a = item({ id: 'a', qty_required: 1, qty_ready: 1 })
+  const b = item({ id: 'b', qty_required: 4, qty_ready: 4, qty_received: 1 })
+  const c = item({ id: 'c', qty_required: 2, qty_ready: 0 })
+  const done = item({ id: 'd', qty_required: 3, qty_ready: 3, qty_received: 3 })
+  const gone = item({ id: 'e', qty_required: 0 })
+
+  it('assumes everything outstanding arrives when nothing is flagged', () => {
+    const p = planReceive([a, b, c, done, gone], new Map())
+    expect(p.changes).toEqual([{ item: 'a', delta: 1 }, { item: 'b', delta: 3 }, { item: 'c', delta: 2 }])
+    expect(p.arriving).toBe(6)
+    expect(p.missing).toBe(0)
+    expect(p.rows.map((r) => r.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('flagged pieces are left outstanding; partial missing receives the rest', () => {
+    const p = planReceive([a, b, c], new Map([['a', 1], ['b', 2]]))
+    expect(p.changes).toEqual([{ item: 'b', delta: 1 }, { item: 'c', delta: 2 }])
+    expect(p.missing).toBe(3)
+    expect(p.missingProducts).toBe(2)
+  })
+
+  it('clamps missing to what is outstanding and ignores bad values', () => {
+    const p = planReceive([b], new Map([['b', 99]]))
+    expect(p.rows[0]).toMatchObject({ missing: 3, arriving: 0 })
+    expect(p.changes).toEqual([])
+    expect(planReceive([b], new Map([['b', -5]])).rows[0]!.missing).toBe(0)
+  })
+
+  it('counts products that arrive without being marked ready by the supplier', () => {
+    expect(planReceive([a, b, c], new Map()).beyondReadyProducts).toBe(1)
+    expect(planReceive([a, b, c], new Map([['c', 2]])).beyondReadyProducts).toBe(0)
   })
 })
 

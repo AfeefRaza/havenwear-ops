@@ -5,6 +5,7 @@ import { PageHeader } from '../components/AppShell'
 import { BatchFormSheet, PaymentPill, StagePill } from '../components/BatchBits'
 import { ItemRow } from '../components/ItemRow'
 import { ItemEditSheet, PasteSheet } from '../components/ItemSheets'
+import { OrdersView } from '../components/OrdersView'
 import { DtfBadge, ProductionBar } from '../components/ProductionBits'
 import { PushSheet } from '../components/PushSheet'
 import { Sheet } from '../components/Sheet'
@@ -17,10 +18,14 @@ import { useItemActions } from '../data/useItemActions'
 import { useRunSummaries } from '../data/production'
 import { formatDate, formatInt, formatPKR, formatPct } from '../domain/format'
 import { groupForPicking } from '../domain/itemSort'
+import { highPriorityIds } from '../domain/orders'
 import type { Item } from '../domain/schemas'
 import { batchStage } from '../domain/stage'
 import { billVariance, computeTotals } from '../domain/totals'
 import { useOnline } from '../lib/hooks'
+import { useWorkspace } from '../lib/workspace'
+
+const VIEW_KEY = 'hw-batch-view'
 
 export default function BatchDetail() {
   const { id = '' } = useParams()
@@ -50,6 +55,28 @@ export default function BatchDetail() {
   const b = batch.data
   const archived = !!b?.archived_at
   const stage = b ? batchStage(b, items) : 'empty'
+
+  // Large orders (this many pieces or more) get a HIGH PRIORITY label.
+  const { workspace } = useWorkspace()
+  const threshold = workspace.high_priority_pieces
+  const priorityIds = useMemo(() => highPriorityIds(items, threshold), [items, threshold])
+
+  // "By products" (default) or "By orders" — same lines, remembered on this device.
+  const [view, setView] = useState<'products' | 'orders'>(() => {
+    try {
+      return localStorage.getItem(VIEW_KEY) === 'orders' ? 'orders' : 'products'
+    } catch {
+      return 'products'
+    }
+  })
+  const chooseView = (v: 'products' | 'orders') => {
+    setView(v)
+    try {
+      localStorage.setItem(VIEW_KEY, v)
+    } catch {
+      /* private mode: just don't remember */
+    }
+  }
 
   const display = useItemDisplay(items)
   // Each status section is sorted category → size → product name so packers work through it in order.
@@ -205,6 +232,23 @@ export default function BatchDetail() {
         Items
       </SectionTitle>
 
+      {!itemsQ.isPending && items.length > 0 && (
+        <div role="tablist" aria-label="How to list the items" className="mb-3 inline-flex rounded-xl bg-surface-2 p-1">
+          {([['products', 'By products'], ['orders', 'By orders']] as const).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              role="tab"
+              aria-selected={view === v}
+              onClick={() => chooseView(v)}
+              className={`min-h-9 rounded-lg px-4 text-sm font-semibold ${view === v ? 'bg-surface text-text shadow-sm' : 'text-muted'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {itemsQ.isPending ? (
         <ListSkeleton />
       ) : items.length === 0 ? (
@@ -221,6 +265,19 @@ export default function BatchDetail() {
         >
           Import your Shopify orders export (CSV) or paste product names — the app detects each category and cost.
         </EmptyState>
+      ) : view === 'orders' ? (
+        <OrdersView
+          items={items}
+          categories={categories}
+          display={display}
+          threshold={threshold}
+          readOnly={archived || !online}
+          selectMode={selectMode}
+          selected={selected}
+          onToggle={toggle}
+          onOpen={setEditing}
+          onReceive={(item, from) => (from === 'supplier' ? void actions.allocate([item], !item.supplier_planned) : actions.receive([item], 'return'))}
+        />
       ) : (
         <div className="flex flex-col gap-4">
           {groups.map((g) => (
@@ -247,6 +304,7 @@ export default function BatchDetail() {
                     image={display.get(it.id)?.image ?? null}
                     line={display.get(it.id)?.info}
                     grouped
+                    priority={priorityIds.has(it.id)}
                     categories={categories}
                     readOnly={archived || !online}
                     selectMode={selectMode}

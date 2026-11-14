@@ -8,6 +8,11 @@ import { Pill } from './ui'
 
 const SWIPE_AT = 90
 
+/** Small red label for lines (or whole orders) that belong to a large order. */
+export function HighPriorityPill() {
+  return <span className="inline-flex items-center rounded-full bg-bad-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-bad">High priority</span>
+}
+
 /**
  * One batch item. Pending items: swipe right → received from Supplier, swipe left → from Return,
  * or tap the buttons. Tap the text to edit. In select mode the row toggles selection.
@@ -26,6 +31,7 @@ export function ItemRow({
   image,
   line,
   grouped,
+  priority,
 }: {
   item: Item
   categories: Category[]
@@ -43,6 +49,8 @@ export function ItemRow({
   line?: { title: string; variant: string | null }
   /** Shown under category + size headings: on phones those aren't repeated in the row, to leave room for the name. */
   grouped?: boolean
+  /** The line belongs to a large order. */
+  priority?: boolean
 }) {
   const cat = categories.find((c) => c.id === item.resolved_category_id)
   const pending = item.status === 'pending'
@@ -133,6 +141,7 @@ export function ItemRow({
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted">
             <span className="tabular font-semibold text-text">× {item.qty}</span>
+            {priority && <HighPriorityPill />}
             {cat ? (
               <span className={cn(grouped && 'hidden sm:inline')}>{cat.name}</span>
             ) : item.status !== 'cancelled' ? (

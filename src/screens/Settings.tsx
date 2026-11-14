@@ -20,6 +20,9 @@ export default function Settings() {
   const [rate, setRate] = useState(String(workspace.dtf_cost_per_meter))
   const rateNum = Number(rate.replace(',', '.'))
   const rateValid = rate.trim() !== '' && Number.isFinite(rateNum) && rateNum >= 0 && rateNum <= 100000
+  const [prio, setPrio] = useState(String(workspace.high_priority_pieces))
+  const prioNum = Number(prio)
+  const prioValid = /^\d{1,2}$/.test(prio.trim()) && prioNum >= 2 && prioNum <= 50
   const autoOn = workspace.auto_archive_days != null
 
   const [pinOn, setPinOn] = useState(hasPin())
@@ -100,6 +103,37 @@ export default function Settings() {
         <p className="text-xs text-muted">
           Used for DTF files marked ready from now on. Files already marked ready keep the rate that applied at that time, so past costs never change.
           {!isOwner && ' Only the workspace owner can change this.'} Suppliers never see this rate.
+        </p>
+      </Card>
+
+      <SectionTitle>Large orders</SectionTitle>
+      <Card className="flex flex-col gap-3">
+        <div className="flex items-end gap-2">
+          <TextField
+            label="HIGH PRIORITY from (pieces in one order)"
+            inputMode="numeric"
+            className="flex-1"
+            value={prio}
+            onChange={(e) => setPrio(e.target.value)}
+            disabled={!isOwner}
+            error={prio.trim() !== '' && !prioValid ? 'Enter a whole number from 2 to 50' : undefined}
+          />
+          <Button
+            disabled={!online || !isOwner || !prioValid || prioNum === workspace.high_priority_pieces}
+            loading={update.isPending}
+            onClick={() =>
+              update.mutate(
+                { high_priority_pieces: prioNum },
+                { onSuccess: () => toast({ tone: 'success', message: `Orders with ${prioNum}+ pieces are now HIGH PRIORITY` }) },
+              )
+            }
+          >
+            Save
+          </Button>
+        </div>
+        <p className="text-xs text-muted">
+          Orders with this many pieces or more get a red HIGH PRIORITY label on their items. In your recent batches about 2% of orders have 4 or more pieces.
+          {!isOwner && ' Only the workspace owner can change this.'}
         </p>
       </Card>
 

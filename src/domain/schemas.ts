@@ -20,6 +20,7 @@ export const WorkspaceRow = z.object({
   auto_archive_days: z.number().int().nullable(),
   last_backup_at: ts.nullable(),
   dtf_cost_per_meter: z.coerce.number().default(100),
+  high_priority_pieces: z.coerce.number().int().default(4),
   created_at: ts,
   updated_at: ts,
 })
@@ -88,6 +89,10 @@ export const ItemRow = z.object({
   notes: z.string().nullable(),
   supplier_planned: z.boolean().default(false),
   production_item_id: uuid.nullable().default(null),
+  // Order info (set by the Shopify import; null for pasted lines)
+  order_name: z.string().nullable().default(null),
+  shopify_order_id: z.number().nullable().default(null),
+  shopify_line_id: z.number().nullable().default(null),
   created_at: ts,
   updated_at: ts,
 })

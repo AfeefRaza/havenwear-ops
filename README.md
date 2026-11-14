@@ -173,6 +173,25 @@ In Shopify: **Orders → (filter, e.g. Unfulfilled) → Export → Current page 
 * Orders already imported into any batch are detected and skipped by default (toggle in the preview).
 * The file is read **in your browser only**. Customer names, emails, phones and addresses are ignored — only product name, quantity and order number are saved.
 
+## Import new batches from Shopify (button)
+
+**Batches → Import new batches.** One tap checks Shopify for orders that carry **both** the `done` tag **and** a batch-date tag such as `11nov26`, and adds their items to that batch (the batch is created if it doesn't exist yet; the match ignores capital letters, so `9NOV26` and `9nov26` are the same batch).
+
+* **No duplicates, ever.** Every imported order is recorded (`shopify_order_imports`) and every imported line keeps its Shopify line id (unique). Tapping twice, or tapping after you added the same order by hand through the CSV import, never adds it twice.
+* **Starting point.** When the feature was switched on, every order that was *already* tagged was recorded as "handled by hand" and is never imported. Only orders tagged afterwards are imported. Manual batches, pasted lists and the CSV import work exactly as before.
+* **Same lines as a pasted list.** `Title - Variant`, pack sizes multiplied into pieces, category and cost detected by your rules; the order number is saved on each line (and as `Order #…` in the notes, so the CSV import still recognises it).
+* **Changes in Shopify afterwards are only flagged**, never applied: cancelled, quantity changed, or batch tag changed shows under "orders need a look" on the Batches screen. Imported items stay as they are until you change them by hand; then tap *Dismiss*.
+* **Orders that can't be imported yet** are listed there too, with the reason (two batch-date tags, an impossible date such as `31nov26`, the batch is archived) and are retried on the next tap once fixed in Shopify.
+* **Speed.** A tap usually takes 2–4 seconds. Very large backlogs are imported in steps: the message says "More are waiting — tap again".
+* **How it works.** HavenWear Ops never holds a Shopify key. The database asks a small **read-only feed** in the separate finance project (`haven-batch-feed`) that returns only order numbers, tags and line items (no customer details, no prices) and can only read the HavenWear store. Its access token and address live in Supabase **Vault** (`haven_batch_feed_token`, `haven_batch_feed_url`); the finance project stores only a hash of the token (`haven_feed_tokens`). To rotate the token, create a new Vault secret value here and replace the hash there.
+* **Switch off / undo.** Remove the Vault secret `haven_batch_feed_token` and the button reports that the import is not set up. Imported lines carry a Shopify line id and imported batches `source = 'shopify'`, so they can be found and deleted. Rollback script: `supabase/rollback/rollback_import_new_batches.sql`. Proof: `supabase/tests/import_proof.sql` (86 checks, rolled back).
+
+## By orders, and HIGH PRIORITY
+
+On a batch, switch **By products | By orders**. By orders groups the *same* lines per Shopify order (from the import or from a CSV import) with Received / Not received per line, "2 of 5 received" per order, and an **Only not received** filter. Receiving anywhere (here, By products, Production) updates both views. Lines without an order number (pasted lists) are grouped at the end.
+
+Orders with **4 or more pieces** (Settings → Large orders) get a small red **HIGH PRIORITY** label (on each line in By products, once on the order in By orders). In the last 1,290 batch orders 81% were 1 piece and about 2% had 4 or more.
+
 ## Import the old Excel workbook
 
 **More → Export / Import → Choose .xlsx file** and pick `Havenwear_Production_Returns_Batch_Tracker_v2.xlsx`.

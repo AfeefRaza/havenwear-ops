@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { PageHeader } from '../components/AppShell'
 import { DtfBadge, DtfReadySheet, IssueLine, ItemHeader, ProductionBar } from '../components/ProductionBits'
+import { ReceiveBatchSheet } from '../components/ReceiveBatchSheet'
 import { Sheet } from '../components/Sheet'
 import { useToast } from '../components/Toast'
 import { Button, Card, EmptyState, ListSkeleton, SectionTitle, Stepper } from '../components/ui'
@@ -36,7 +37,9 @@ export default function ProductionRun() {
   const online = useOnline()
   const [receiving, setReceiving] = useState<ProdItemT | null>(null)
   const [readyFor, setReadyFor] = useState<{ id: string; batch_ref: string } | null>(null)
+  const [receivingBatch, setReceivingBatch] = useState(false)
   const run = runs.data?.find((r) => r.id === id)
+  const outstanding = (items.data ?? []).reduce((s, i) => s + (i.qty_required > 0 ? itemProgress(i).notReceived : 0), 0)
   const itemById = useMemo(() => new Map((items.data ?? []).map((i) => [i.id, i])), [items.data])
   const openIssues = (issues.data ?? []).filter((q) => q.status !== 'resolved')
 
@@ -60,6 +63,11 @@ export default function ProductionRun() {
           <Row label="Ready but not received" value={run.ready_not_received} warn />
           <Row label="Front / back prints" value={`${run.front_prints} / ${run.back_prints}`} />
         </dl>
+        {outstanding > 0 && (
+          <Button variant="primary" icon={PackageCheck} disabled={!online} onClick={() => setReceivingBatch(true)}>
+            Receive batch · {outstanding} pc{outstanding === 1 ? '' : 's'} to receive
+          </Button>
+        )}
         <CopyListButton batchId={run.batch_id} items={items.data ?? []} />
         {run.needs_dtf && (
           <Button
@@ -151,6 +159,7 @@ export default function ProductionRun() {
       </Card>
 
       <ReceiveSheet item={receiving} onClose={() => setReceiving(null)} />
+      <ReceiveBatchSheet open={receivingBatch} onOpenChange={setReceivingBatch} items={items.data ?? []} />
     </>
   )
 }

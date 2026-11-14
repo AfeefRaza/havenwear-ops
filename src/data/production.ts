@@ -180,6 +180,39 @@ export function useReceive() {
   }
 }
 
+/**
+ * "Receive batch": mark many products received in one go (each through the same role-checked
+ * `production_receive` function as the single-product button, so stock, batch lines and history
+ * behave identically). Resolves with the changes that were saved, which makes Undo exact.
+ * If one fails midway, what was already saved stays saved and the message says so; opening
+ * Receive batch again continues from the current state.
+ */
+export function useReceiveMany() {
+  const qc = useQueryClient()
+  const toast = useToast()
+  return useMutation({
+    mutationFn: async (v: { changes: { item: string; delta: number }[] }) => {
+      assertOnline()
+      const done: { item: string; delta: number }[] = []
+      const todo = v.changes.filter((c) => c.delta !== 0)
+      try {
+        for (const c of todo) {
+          await rpc('production_receive', { p_item: c.item, p_delta: c.delta })
+          done.push(c)
+        }
+      } catch (e) {
+        throw new Error(done.length ? `${errorMessage(e)} — ${done.length} of ${todo.length} products were saved. Open Receive batch again to finish.` : errorMessage(e))
+      }
+      return done
+    },
+    onError: (e) => toast({ tone: 'error', message: errorMessage(e) }),
+    onSettled: () => {
+      for (const k of ['prod-runs', 'prod-items', 'prod-issues', 'prod-events', 'dtf-analytics']) void qc.invalidateQueries({ queryKey: [k] })
+      invalidateWork(qc)
+    },
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Shopify catalogue
 // ---------------------------------------------------------------------------

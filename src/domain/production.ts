@@ -56,6 +56,44 @@ export function itemProgress(it: Pick<ProdItem, 'qty_required' | 'qty_ready' | '
   }
 }
 
+export interface ReceiveRow {
+  id: string
+  /** Pieces still to be received. */
+  outstanding: number
+  /** Pieces the user says did NOT arrive (0 … outstanding). */
+  missing: number
+  /** Pieces that will be marked received (outstanding − missing). */
+  arriving: number
+  /** More pieces would be received than the supplier has marked ready. */
+  beyondReady: boolean
+}
+
+/**
+ * "Receive batch" works the other way round: everything still outstanding is assumed to have
+ * arrived, and the user flags what did NOT. Returns the per-product rows plus the exact
+ * `production_receive` deltas to apply (only products with something arriving).
+ */
+export function planReceive(items: readonly ProdItem[], missing: ReadonlyMap<string, number>) {
+  const rows: ReceiveRow[] = []
+  const changes: { item: string; delta: number }[] = []
+  for (const it of items) {
+    const p = itemProgress(it)
+    if (it.qty_required <= 0 || p.notReceived <= 0) continue
+    const miss = Math.max(0, Math.min(p.notReceived, Math.trunc(missing.get(it.id) ?? 0)))
+    const arriving = p.notReceived - miss
+    rows.push({ id: it.id, outstanding: p.notReceived, missing: miss, arriving, beyondReady: arriving > p.readyNotReceived })
+    if (arriving > 0) changes.push({ item: it.id, delta: arriving })
+  }
+  return {
+    rows,
+    changes,
+    arriving: rows.reduce((s, r) => s + r.arriving, 0),
+    missing: rows.reduce((s, r) => s + r.missing, 0),
+    missingProducts: rows.filter((r) => r.missing > 0).length,
+    beyondReadyProducts: rows.filter((r) => r.arriving > 0 && r.beyondReady).length,
+  }
+}
+
 export interface DtfLine {
   key: string
   title: string

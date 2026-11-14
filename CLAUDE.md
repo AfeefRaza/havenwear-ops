@@ -70,6 +70,16 @@ workflows and business rules.
   the owner can link a product manually once.
 - Pakistan time (Asia/Karachi). Money `PKR 1,400`, dates `10-Sep-26`. Mobile-first, bottom sheets, undo.
 
+- **Import new batches (Batches screen button):** orders tagged `done` + a batch-date tag (`11nov26`) are added to that
+  batch (created if missing, ref matched case-insensitively). Duplicate-proof via the `shopify_order_imports` log and a
+  unique `batch_items.shopify_line_id`; orders tagged before go-live were recorded as `baseline` and are never imported.
+  Later Shopify changes (cancel / qty / tag) are **flagged only**, never applied. Manual batches, paste and CSV import
+  are untouched. The app holds **no Shopify key**: the DB calls a read-only feed (`haven-batch-feed`) in the separate
+  finance project (`hisab-kitab`), token + URL in Vault. Requests from the app die at 8 s (role `statement_timeout`,
+  not extendable inside a function) so the import is capped to ~4 s and continues on the next tap.
+- **By orders tab + HIGH PRIORITY:** same `batch_items` rows grouped per order (`order_name`, or the `Order #…` note from
+  the CSV import); orders with `workspaces.high_priority_pieces` (default 4) or more pieces get a red label.
+
 ## Shared database — careful
 The same Supabase project also hosts the owner's separate **Creative Radar** app (`radar_*` tables and
 `radar_engine_*` functions, token-gated). Don't modify or drop them. They reuse

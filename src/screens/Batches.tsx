@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '../components/AppShell'
 import { BatchCard, BatchFormSheet, nextRef } from '../components/BatchBits'
+import { ImportBatchesCard } from '../components/ImportBatchesCard'
 import { Button, EmptyState, ErrorNote, ListSkeleton, Segmented } from '../components/ui'
 import { useBatchCounts, useBatchList, type BatchTab } from '../data/queries'
 import { useDebounced, useOnline } from '../lib/hooks'
@@ -30,6 +31,7 @@ export default function Batches() {
         }
       />
       <div className="flex flex-col gap-3">
+        <ImportBatchesCard />
         <Segmented
           label="Batch status"
           value={tab}

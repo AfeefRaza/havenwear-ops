@@ -159,6 +159,19 @@ export default function ProductionRun() {
       </Card>
 
       <ReceiveSheet item={receiving} onClose={() => setReceiving(null)} />
+      {/* Always in reach while scrolling the products: receive the delivery the quick way round. */}
+      {outstanding > 0 && (
+        <>
+          <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 flex justify-center px-4 md:bottom-4 md:left-60">
+            <div className="pointer-events-auto w-full max-w-xl rounded-2xl border border-border bg-surface/95 p-2 shadow-lg backdrop-blur">
+              <Button variant="primary" size="lg" block icon={PackageCheck} disabled={!online} onClick={() => setReceivingBatch(true)}>
+                Receive batch — mark what didn't arrive
+              </Button>
+            </div>
+          </div>
+          <div className="h-20" aria-hidden />
+        </>
+      )}
       <ReceiveBatchSheet open={receivingBatch} onOpenChange={setReceivingBatch} items={items.data ?? []} />
     </>
   )
